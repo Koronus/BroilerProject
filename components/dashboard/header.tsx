@@ -10,7 +10,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export function DashboardHeader() {
+export type DashboardSection = "technical" | "incidents" | "notifications"
+
+interface DashboardHeaderProps {
+  activeSection: DashboardSection
+  onSectionChange: (section: DashboardSection) => void
+}
+
+export function DashboardHeader({
+  activeSection,
+  onSectionChange,
+}: DashboardHeaderProps) {
   return (
     <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-background">
       {/* Breadcrumbs */}
@@ -27,7 +37,11 @@ export function DashboardHeader() {
       </nav>
 
       {/* Center Tabs */}
-      <Tabs defaultValue="technical" className="hidden md:block">
+      <Tabs
+        value={activeSection}
+        onValueChange={(value) => onSectionChange(value as DashboardSection)}
+        className="hidden md:block"
+      >
         <TabsList className="bg-background border border-zinc-800">
           <TabsTrigger
             value="technical"
@@ -52,17 +66,6 @@ export function DashboardHeader() {
 
       {/* Right Section */}
       <div className="flex items-center gap-6">
-        {/* Real-time indicator */}
-        <div className="flex items-center gap-2 text-sm">
-          <div className="relative flex items-center gap-2">
-            <span className="relative flex size-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full size-2.5 bg-emerald-500"></span>
-            </span>
-            <span className="text-emerald-400 font-medium">Режим реального времени</span>
-          </div>
-        </div>
-
         {/* Timestamp */}
         <div className="text-zinc-500 text-sm hidden lg:block">
           14.04.2026 17:13:25

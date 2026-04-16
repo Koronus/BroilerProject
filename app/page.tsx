@@ -1,12 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { DashboardHeader } from "@/components/dashboard/header"
+import { DashboardHeader, type DashboardSection } from "@/components/dashboard/header"
 import { CategorySidebar, categories } from "@/components/dashboard/category-sidebar"
 import { KpiGrid } from "@/components/dashboard/kpi-grid"
 import { DetailPanel } from "@/components/dashboard/detail-panel"
+import { NotificationsPage } from "@/components/dashboard/notifications-page"
+import { IncidentsPage } from "@/components/dashboard/incidents-page"
 
 export default function DashboardPage() {
+  const [activeSection, setActiveSection] = useState<DashboardSection>("technical")
   const [activeCategory, setActiveCategory] = useState(categories[0]?.id || "zootech")
   const [activeMetric, setActiveMetric] = useState("mortality")
   const [showDetailPanel, setShowDetailPanel] = useState(false)
@@ -31,9 +34,19 @@ export default function DashboardPage() {
   }, [activeCategory]) // Срабатывает при изменении категории
 
   return (
-    <div className="flex flex-col h-screen bg-backrgound overflow-hidden">
+    <div className="flex flex-col h-screen bg-background overflow-hidden">
       {/* Header */}
-      <DashboardHeader />
+      <DashboardHeader
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
+
+      {activeSection === "notifications" ? (
+        <NotificationsPage />
+      ) : activeSection === "incidents" ? (
+        <IncidentsPage />
+      ) : (
+        <>
 
       {/* Main Content - 3 Column Layout */}
       <div className="flex flex-1 overflow-hidden">
@@ -67,6 +80,8 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }
