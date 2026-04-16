@@ -1,7 +1,7 @@
 "use client"
 
-import { ChevronRight, ChevronDown, User } from "lucide-react"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ChevronDown, ChevronRight, Clock3, User } from "lucide-react"
+import { useMemo } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export type DashboardSection = "technical" | "incidents" | "notifications"
 
@@ -21,6 +22,15 @@ export function DashboardHeader({
   activeSection,
   onSectionChange,
 }: DashboardHeaderProps) {
+  const timestamp = useMemo(
+    () =>
+      new Intl.DateTimeFormat("ru-RU", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date()),
+    []
+  )
+
   return (
     <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-background">
       {/* Breadcrumbs */}
@@ -66,9 +76,19 @@ export function DashboardHeader({
 
       {/* Right Section */}
       <div className="flex items-center gap-6">
+        {/* Status indicator */}
+        <div className="hidden lg:flex items-center gap-2">
+          <span className="relative flex size-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+            <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500" />
+          </span>
+          <span className="text-sm text-zinc-500">Реальное время</span>
+        </div>
+
         {/* Timestamp */}
-        <div className="text-zinc-500 text-sm hidden lg:block">
-          14.04.2026 17:13:25
+        <div className="flex items-center gap-2 text-zinc-500 text-sm hidden lg:flex">
+          <Clock3 className="size-3.5" />
+          {timestamp}
         </div>
 
         {/* User Profile */}
@@ -81,7 +101,14 @@ export function DashboardHeader({
                   ПР
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm text-foreground hidden lg:block">Павел Романов</span>
+              <div className="hidden lg:block text-left">
+                <div className="text-sm font-medium text-foreground">
+                  Павел Романов
+                </div>
+                <div className="text-xs text-zinc-500">
+                  Контроль качества
+                </div>
+              </div>
               <ChevronDown className="size-4 text-zinc-500 hidden lg:block" />
             </button>
           </DropdownMenuTrigger>

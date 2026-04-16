@@ -1,25 +1,25 @@
 "use client"
 
-import { useState } from "react"
-import { KpiCard } from "./kpi-card"
-import { categories } from "./category-sidebar"
+import { useMemo } from "react"
 import {
-  Thermometer,
-  Droplets,
-  CheckCircle,
-  Wheat,
   Activity,
-  Users,
-  Wind,
+  CheckCircle,
   Droplet,
+  Droplets,
   Scale,
+  Thermometer,
   Utensils,
+  Wheat,
+  Wind,
 } from "lucide-react"
+import { categories } from "./category-sidebar"
+import { KpiCard } from "./kpi-card"
 
 interface KpiGridProps {
   onSelectMetric: (metric: string) => void
   activeMetric: string
   activeCategory: string
+  selectedAge: BirdAgeGroup
 }
 
 interface Metric {
@@ -29,281 +29,124 @@ interface Metric {
   value: string
   norm: string
   trend: "up" | "down" | "stable"
-  trendGood: "up" | "down" 
+  trendGood: "up" | "down"
   status: "normal" | "warning" | "critical"
   categoryId: string
-  ageGroup?: string  // Добавлено поле для возрастной группы
+  ageGroup?: string
 }
 
-// Тип для возраста птиц
-type BirdAge = "0-3" | "21-30"
+export type BirdAgeGroup = "0-3" | "21-30"
 
-// Данные метрик для разных возрастов
-const metricsByAge: Record<BirdAge, Metric[]> = {
+const metricsByAge: Record<BirdAgeGroup, Metric[]> = {
   "0-3": [
-    // ========== Микроклимат (0-3 дня) ==========
-    {
-      id: "temperature_0_3",
-      icon: Thermometer,
-      title: "Температура",
-      value: "40.2°C",
-      norm: "40.0-40.8",
-      trend: "up" as const,
-      trendGood: "up" as const,
-      status: "normal" as const,
-      categoryId: "microclimate",
-      ageGroup: "0-3",
-    },
-    {
-      id: "humidity_0_3",
-      icon: Droplets,
-      title: "Влажность",
-      value: "70%",
-      norm: "65-75%",
-      trend: "stable" as const,
-      trendGood: "up" as const,
-      status: "normal" as const,
-      categoryId: "microclimate",
-      ageGroup: "0-3",
-    },
-    {
-      id: "ammonia_0_3",
-      icon: Wind,
-      title: "Аммиак",
-      value: "8 ppm",
-      norm: "< 5 ppm",
-      trend: "up" as const,
-      trendGood: "down" as const,
-      status: "warning" as const,
-      categoryId: "microclimate",
-      ageGroup: "0-3",
-    },
-    // ========== Потребление ресурсов (0-3 дня) ==========
-    {
-      id: "feed_intake_0_3",
-      icon: Utensils,
-      title: "Потребление корма",
-      value: "15 г",
-      norm: "14-18 г",
-      trend: "up" as const,
-      trendGood: "up" as const,
-      status: "normal" as const,
-      categoryId: "consumption",
-      ageGroup: "0-3",
-    },
-    {
-      id: "water_intake_0_3",
-      icon: Droplet,
-      title: "Потребление воды",
-      value: "30 мл",
-      norm: "28-35 мл",
-      trend: "up" as const,
-      trendGood: "up" as const,
-      status: "normal" as const,
-      categoryId: "consumption",
-      ageGroup: "0-3",
-    },
-    // ========== Производственные параметры (0-3 дня) ==========
-    {
-      id: "average_weight_0_3",
-      icon: Scale,
-      title: "Средний вес",
-      value: "45 г",
-      norm: "42-48 г",
-      trend: "up" as const,
-      trendGood: "up" as const,
-      status: "normal" as const,
-      categoryId: "production",
-      ageGroup: "0-3",
-    },
-    {
-      id: "fcr_0_3",
-      icon: Wheat,
-      title: "Конверсия корма FCR",
-      value: "1.2",
-      norm: "1.1-1.3",
-      trend: "up" as const,
-      trendGood: "down" as const,
-      status: "normal" as const,
-      categoryId: "production",
-      ageGroup: "0-3",
-    },
-    // ========== Состояние стада (0-3 дня) ==========
-    {
-      id: "mortality_0_3",
-      icon: Activity,
-      title: "Смертность",
-      value: "1.2%",
-      norm: "< 1.0%",
-      trend: "up" as const,
-      trendGood: "down" as const,
-      status: "warning" as const,
-      categoryId: "herd",
-      ageGroup: "0-3",
-    },
+    { id: "temperature_0_3", icon: Thermometer, title: "Температура", value: "40.2°C", norm: "40.0-40.8", trend: "up", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "0-3" },
+    { id: "humidity_0_3", icon: Droplets, title: "Влажность", value: "70%", norm: "65-75%", trend: "stable", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "0-3" },
+    { id: "ammonia_0_3", icon: Wind, title: "Аммиак", value: "8 ppm", norm: "< 5 ppm", trend: "up", trendGood: "down", status: "warning", categoryId: "microclimate", ageGroup: "0-3" },
+    { id: "feed_intake_0_3", icon: Utensils, title: "Потребление корма", value: "15 г", norm: "14-18 г", trend: "up", trendGood: "up", status: "normal", categoryId: "consumption", ageGroup: "0-3" },
+    { id: "water_intake_0_3", icon: Droplet, title: "Потребление воды", value: "30 мл", norm: "28-35 мл", trend: "up", trendGood: "up", status: "normal", categoryId: "consumption", ageGroup: "0-3" },
+    { id: "average_weight_0_3", icon: Scale, title: "Средний вес", value: "45 г", norm: "42-48 г", trend: "up", trendGood: "up", status: "normal", categoryId: "production", ageGroup: "0-3" },
+    { id: "fcr_0_3", icon: Wheat, title: "Конверсия корма FCR", value: "1.2", norm: "1.1-1.3", trend: "up", trendGood: "down", status: "normal", categoryId: "production", ageGroup: "0-3" },
+    { id: "mortality_0_3", icon: Activity, title: "Смертность", value: "1.2%", norm: "< 1.0%", trend: "up", trendGood: "down", status: "warning", categoryId: "herd", ageGroup: "0-3" },
   ],
   "21-30": [
-    // ========== Микроклимат (21-30 дней) ==========
-    {
-      id: "temperature_21_30",
-      icon: Thermometer,
-      title: "Температура",
-      value: "39.8°C",
-      norm: "39.4-40.5",
-      trend: "up" as const,
-      trendGood: "up" as const,
-      status: "normal" as const,
-      categoryId: "microclimate",
-      ageGroup: "21-30",
-    },
-    {
-      id: "humidity_21_30",
-      icon: Droplets,
-      title: "Влажность",
-      value: "65%",
-      norm: "55-70%",
-      trend: "down" as const,
-      trendGood: "up" as const,
-      status: "normal" as const,
-      categoryId: "microclimate",
-      ageGroup: "21-30",
-    },
-    {
-      id: "ammonia_21_30",
-      icon: Wind,
-      title: "Аммиак",
-      value: "15 ppm",
-      norm: "< 10 ppm",
-      trend: "up" as const,
-      trendGood: "down" as const,
-      status: "warning" as const,
-      categoryId: "microclimate",
-      ageGroup: "21-30",
-    },
-    // ========== Потребление ресурсов (21-30 дней) ==========
-    {
-      id: "feed_intake_21_30",
-      icon: Utensils,
-      title: "Потребление корма",
-      value: "125 г",
-      norm: "120-130 г",
-      trend: "up" as const,
-      trendGood: "down" as const,
-      status: "normal" as const,
-      categoryId: "consumption",
-      ageGroup: "21-30",
-    },
-    {
-      id: "water_intake_21_30",
-      icon: Droplet,
-      title: "Потребление воды",
-      value: "250 мл",
-      norm: "240-260 мл",
-      trend: "up" as const,
-      trendGood: "down" as const,
-      status: "normal" as const,
-      categoryId: "consumption",
-      ageGroup: "21-30",
-    },
-    // ========== Производственные параметры (21-30 дней) ==========
-    {
-      id: "average_weight_21_30",
-      icon: Scale,
-      title: "Средний вес",
-      value: "1.8 кг",
-      norm: "1.7-1.9 кг",
-      trend: "up" as const,
-      trendGood: "up" as const,
-      status: "normal" as const,
-      categoryId: "production",
-      ageGroup: "21-30",
-    },
-    {
-      id: "fcr_21_30",
-      icon: Wheat,
-      title: "Конверсия корма FCR",
-      value: "1.65",
-      norm: "1.6-1.8",
-      trend: "up" as const,
-      trendGood: "down" as const,
-      status: "normal" as const,
-      categoryId: "production",
-      ageGroup: "21-30",
-    },
-    // ========== Состояние стада (21-30 дней) ==========
-    {
-      id: "mortality_21_30",
-      icon: Activity,
-      title: "Смертность",
-      value: "2.1%",
-      norm: "< 1.5%",
-      trend: "up" as const,
-      trendGood: "down" as const,
-      status: "critical" as const,
-      categoryId: "herd",
-      ageGroup: "21-30",
-    },
+    { id: "temperature_21_30", icon: Thermometer, title: "Температура", value: "39.8°C", norm: "39.4-40.5", trend: "up", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "21-30" },
+    { id: "humidity_21_30", icon: Droplets, title: "Влажность", value: "65%", norm: "55-70%", trend: "down", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "21-30" },
+    { id: "ammonia_21_30", icon: Wind, title: "Аммиак", value: "15 ppm", norm: "< 10 ppm", trend: "up", trendGood: "down", status: "warning", categoryId: "microclimate", ageGroup: "21-30" },
+    { id: "feed_intake_21_30", icon: Utensils, title: "Потребление корма", value: "125 г", norm: "120-130 г", trend: "up", trendGood: "down", status: "normal", categoryId: "consumption", ageGroup: "21-30" },
+    { id: "water_intake_21_30", icon: Droplet, title: "Потребление воды", value: "250 мл", norm: "240-260 мл", trend: "up", trendGood: "down", status: "normal", categoryId: "consumption", ageGroup: "21-30" },
+    { id: "average_weight_21_30", icon: Scale, title: "Средний вес", value: "1.8 кг", norm: "1.7-1.9 кг", trend: "up", trendGood: "up", status: "normal", categoryId: "production", ageGroup: "21-30" },
+    { id: "fcr_21_30", icon: Wheat, title: "Конверсия корма FCR", value: "1.65", norm: "1.6-1.8", trend: "up", trendGood: "down", status: "normal", categoryId: "production", ageGroup: "21-30" },
+    { id: "mortality_21_30", icon: Activity, title: "Смертность", value: "2.1%", norm: "< 1.5%", trend: "up", trendGood: "down", status: "critical", categoryId: "herd", ageGroup: "21-30" },
   ],
 }
 
-// Плоский массив для обратной совместимости (используем 21-30 как основной)
 export const metrics = metricsByAge["21-30"]
+export const getMetricsForAge = (age: BirdAgeGroup) => metricsByAge[age]
 
-export function KpiGrid({ onSelectMetric, activeMetric, activeCategory }: KpiGridProps) {
-  const [selectedAge, setSelectedAge] = useState<BirdAge>("21-30")
-  
-  // Получаем метрики для выбранного возраста
+export function KpiGrid({ onSelectMetric, activeMetric, activeCategory, selectedAge }: KpiGridProps) {
   const currentMetrics = metricsByAge[selectedAge]
-  
-  const currentCategory = categories.find(cat => cat.id === activeCategory)
-  const categoryTitle = currentCategory?.name || "Показатели"
-  const filteredMetrics = currentMetrics.filter(metric => metric.categoryId === activeCategory)
+  const currentCategory = categories.find((cat) => cat.id === activeCategory)
+  const filteredMetrics = currentMetrics.filter((metric) => metric.categoryId === activeCategory)
 
-  // Обработчик изменения возраста
-  const handleAgeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedAge(event.target.value as BirdAge)
-  }
+  const summary = useMemo(() => {
+    const warnings = currentMetrics.filter((metric) => metric.status === "warning").length
+    const critical = currentMetrics.filter((metric) => metric.status === "critical").length
+    const stable = currentMetrics.filter((metric) => metric.status === "normal").length
+
+    return { warnings, critical, stable }
+  }, [currentMetrics])
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-6 py-4 border-b border-zinc-800">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">
-              {categoryTitle}
+    <div className="flex flex-col">
+      <div className="border-b border-black/5 px-5 py-5 dark:border-white/8 md:px-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
+              Выбранный раздел
+            </p>
+            <h2 className="mt-2 break-words text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+              {currentCategory?.name || "Показатели"}
             </h2>
-            <p className="text-sm text-zinc-500 mt-1">
-              Текущие метрики по выбранной группе параметров
+            <p className="mt-2 max-w-2xl break-words text-sm text-zinc-500 dark:text-zinc-400">
+              Карточки собраны по текущей возрастной группе и помогают быстро увидеть отклонения от нормы.
             </p>
           </div>
-          
-          {/* Выпадающий список для выбора возраста */}
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-zinc-400">Возраст птиц:</label>
-            <select
-              value={selectedAge}
-              onChange={handleAgeChange}
-              className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer hover:bg-zinc-800 transition-colors"
-            >
-              <option value="0-3">0-3 дня</option>
-              <option value="21-30">21-30 дней</option>
-            </select>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="rounded-full border border-black/5 bg-white/80 px-4 py-3 text-sm text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+              Возрастной срез:{" "}
+              <span className="font-medium text-zinc-950 dark:text-zinc-50">
+                {selectedAge === "0-3" ? "0-3 дня" : "21-30 дней"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-black/5 bg-white/75 p-4 dark:border-white/8 dark:bg-white/4">
+            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <CheckCircle className="size-4 text-emerald-500" />
+              Стабильные метрики
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+              {summary.stable}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-black/5 bg-white/75 p-4 dark:border-white/8 dark:bg-white/4">
+            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <Activity className="size-4 text-amber-500" />
+              Предупреждения
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+              {summary.warnings}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-black/5 bg-white/75 p-4 dark:border-white/8 dark:bg-white/4">
+            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <Activity className="size-4 text-red-500" />
+              Критические
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+              {summary.critical}
+            </div>
           </div>
         </div>
       </div>
-      
-      <div className="flex-1 overflow-y-auto p-6">
+
+      <div className="px-5 py-5 md:px-6">
         {filteredMetrics.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <p className="text-zinc-500 mb-2">Нет метрик для выбранной категории</p>
-              <p className="text-sm text-zinc-600">
-                Выберите другую категорию или возрастную группу
+          <div className="flex h-full items-center justify-center rounded-[28px] border border-dashed border-black/10 bg-white/50 p-8 text-center dark:border-white/10 dark:bg-white/3">
+            <div>
+              <p className="text-base font-medium text-zinc-900 dark:text-zinc-100">
+                Для этой категории пока нет метрик
+              </p>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                Выберите другую возрастную группу или переключитесь на соседний раздел.
               </p>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {filteredMetrics.map((metric) => (
               <KpiCard
                 key={metric.id}
