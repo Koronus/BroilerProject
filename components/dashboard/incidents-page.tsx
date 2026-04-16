@@ -208,7 +208,7 @@ function FieldSelect({
 
 function IncidentDetails({ incident }: { incident: Incident }) {
   return (
-    <aside className="flex h-full min-h-0 flex-col border-l border-zinc-200 bg-white">
+    <aside className="flex h-full min-h-0 flex-col border-l border-zinc-200 bg-white rounded-br-[28px]" >
       <div className="border-b border-zinc-200 px-5 py-4">
         <p className="text-xs uppercase tracking-wide text-zinc-500">
           Карточка инцидента
@@ -328,7 +328,7 @@ export function IncidentsPage() {
   }, [searchQuery])
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col bg-background">
+    <main className="flex min-h-0 flex-1 flex-col bg-background rounded-[28px] ">
       <div className="border-b border-zinc-200 px-6 py-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
@@ -406,7 +406,7 @@ export function IncidentsPage() {
         </div>
       </section>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] ">
         <section className="min-h-0 overflow-y-auto px-6 py-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">

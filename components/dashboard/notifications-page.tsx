@@ -288,7 +288,7 @@ function NotificationActions({
     "h-8 border-zinc-300 bg-white px-2.5 text-xs text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-2" >
       <Button variant="outline" size="sm" className={actionClass} onClick={onOpen}>
         <Eye className="size-3.5" />
         Открыть
@@ -321,7 +321,7 @@ function NotificationDetails({
   const SourceIcon = sourceIcons[notification.source]
 
   return (
-    <aside className="flex h-full min-h-0 flex-col border-l border-zinc-200 bg-white">
+    <aside className="flex h-full min-h-0 flex-col border-l border-zinc-200 bg-white rounded-br-[28px]">
       <div className="border-b border-zinc-200 px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -493,7 +493,7 @@ export function NotificationsPage() {
   }, [searchQuery])
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col bg-background">
+    <main className="flex min-h-0 flex-1 flex-col bg-background rounded-[28px]">
       <div className="border-b border-zinc-200 px-6 py-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
