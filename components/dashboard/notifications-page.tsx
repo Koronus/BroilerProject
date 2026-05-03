@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import {
   AlertTriangle,
   BrainCircuit,
@@ -26,12 +26,59 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
 type NotificationPriority = "critical" | "high" | "medium" | "low"
 type NotificationStatus = "new" | "viewed" | "incident" | "closed"
 type NotificationSource = "sensor" | "system" | "employee" | "analytics"
+type DateFilter = "all" | "24h" | "today" | "7d" | "month"
+
+interface SelectOption {
+  value: string
+  label: string
+}
+
+interface NotificationFilters {
+  type: string
+  farm: string
+  building: string
+  period: DateFilter
+  priority: "all" | NotificationPriority
+  status: "all" | NotificationStatus
+  source: "all" | NotificationSource
+}
+
+interface IncidentFormState {
+  title: string
+  description: string
+  priority: NotificationPriority
+  responsible: string
+  decisionComment: string
+}
+
+interface CreatedIncident {
+  code?: string
+}
+
+interface BackendNotification {
+  id: string
+  code: string
+  title: string
+  description?: string | null
+  status: string
+  priority?: string | null
+  source?: string | null
+  sourceDetail?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
 
 interface FarmNotification {
   id: string
@@ -42,6 +89,7 @@ interface FarmNotification {
   fullText: string
   time: string
   date: string
+  createdAtMs?: number
   farm: string
   building: string
   source: NotificationSource
@@ -113,6 +161,94 @@ const statusConfig: Record<NotificationStatus, { label: string; className: strin
   },
 }
 
+const backendStatusMap: Record<string, NotificationStatus> = {
+  NEW: "new",
+  VIEWED: "viewed",
+  ACKNOWLEDGED: "viewed",
+  SNOOZED: "viewed",
+  INCIDENT_CREATED: "incident",
+  RESOLVED: "closed",
+  CLOSED: "closed",
+}
+
+const backendPriorityMap: Record<string, NotificationPriority> = {
+  CRITICAL: "critical",
+  HIGH: "high",
+  MEDIUM: "medium",
+  LOW: "low",
+}
+
+const backendSourceMap: Record<string, NotificationSource> = {
+  SENSOR: "sensor",
+  SYSTEM: "system",
+  EMPLOYEE: "employee",
+  ANALYTICS: "analytics",
+}
+
+const backendSourceLabelMap: Record<NotificationSource, string> = {
+  sensor: "Датчик",
+  system: "Система",
+  employee: "Сотрудник",
+  analytics: "Аналитика",
+}
+
+const defaultFilters: NotificationFilters = {
+  type: "all",
+  farm: "all",
+  building: "all",
+  period: "all",
+  priority: "all",
+  status: "all",
+  source: "all",
+}
+
+const dateFilterOptions: SelectOption[] = [
+  { value: "all", label: "Все даты" },
+  { value: "24h", label: "Последние 24 часа" },
+  { value: "today", label: "Сегодня" },
+  { value: "7d", label: "7 дней" },
+  { value: "month", label: "Месяц" },
+]
+
+const priorityFilterOptions: SelectOption[] = [
+  { value: "all", label: "Любой" },
+  { value: "critical", label: priorityConfig.critical.label },
+  { value: "high", label: priorityConfig.high.label },
+  { value: "medium", label: priorityConfig.medium.label },
+  { value: "low", label: priorityConfig.low.label },
+]
+
+const statusFilterOptions: SelectOption[] = [
+  { value: "all", label: "Все статусы" },
+  { value: "new", label: statusConfig.new.label },
+  { value: "viewed", label: statusConfig.viewed.label },
+  { value: "incident", label: statusConfig.incident.label },
+  { value: "closed", label: statusConfig.closed.label },
+]
+
+const sourceFilterOptions: SelectOption[] = [
+  { value: "all", label: "Все источники" },
+  { value: "sensor", label: "Датчик" },
+  { value: "system", label: "Система" },
+  { value: "employee", label: "Сотрудник" },
+  { value: "analytics", label: "Аналитика" },
+]
+
+const emptyIncidentForm: IncidentFormState = {
+  title: "",
+  description: "",
+  priority: "medium",
+  responsible: "",
+  decisionComment: "",
+}
+
+const incidentPriorityMap: Record<NotificationPriority, string> = {
+  critical: "CRITICAL",
+  high: "HIGH",
+  medium: "MEDIUM",
+  low: "LOW",
+}
+
 const sourceIcons: Record<NotificationSource, LucideIcon> = {
   sensor: RadioTower,
   system: Settings,
@@ -120,7 +256,104 @@ const sourceIcons: Record<NotificationSource, LucideIcon> = {
   analytics: BrainCircuit,
 }
 
-const notifications: FarmNotification[] = [
+const normalizeBackendEnum = (value?: string | null) => value?.toUpperCase() ?? ""
+const unknownValue = "—"
+
+const buildTextFilterOptions = (
+  values: string[],
+  allLabel: string,
+  excludeUnknown = true,
+): SelectOption[] => {
+  const uniqueValues = Array.from(
+    new Set(
+      values
+        .map((value) => value.trim())
+        .filter((value) => value && (!excludeUnknown || value !== unknownValue)),
+    ),
+  )
+
+  return [
+    { value: "all", label: allLabel },
+    ...uniqueValues.map((value) => ({ value, label: value })),
+  ]
+}
+
+const formatBackendDateTime = (value?: string | null) => {
+  if (!value) {
+    return { date: "—", time: "—", timestamp: undefined }
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return { date: "—", time: "—", timestamp: undefined }
+  }
+
+  return {
+    date: date.toLocaleDateString("ru-RU"),
+    time: date.toLocaleTimeString("ru-RU", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    timestamp: date.getTime(),
+  }
+}
+
+const parseNotificationDateTime = (dateLabel: string, timeLabel: string) => {
+  const [day, month, year] = dateLabel.split(".").map(Number)
+  const [hour = 0, minute = 0] = timeLabel.split(":").map(Number)
+
+  if (!day || !month || !year) {
+    return undefined
+  }
+
+  const date = new Date(year, month - 1, day, hour, minute)
+
+  return Number.isNaN(date.getTime()) ? undefined : date.getTime()
+}
+
+const getNotificationTimestamp = (notification: FarmNotification) =>
+  notification.createdAtMs ?? parseNotificationDateTime(notification.date, notification.time)
+
+const notificationNeedsIncident = (notification: FarmNotification) =>
+  notification.requiresIncident ||
+  (notification.status !== "incident" &&
+    notification.status !== "closed" &&
+    (notification.priority === "critical" || notification.priority === "high"))
+
+const toFarmNotification = (notification: BackendNotification): FarmNotification => {
+  const { date, time, timestamp } = formatBackendDateTime(notification.createdAt)
+  const source = backendSourceMap[normalizeBackendEnum(notification.source)] ?? "system"
+
+  return {
+    id: notification.id,
+    icon: AlertTriangle,
+    type: "Уведомление",
+    title: notification.title,
+    description: notification.description ?? "Описание не указано.",
+    fullText: notification.description ?? notification.title,
+    time,
+    date,
+    createdAtMs: timestamp,
+    farm: "—",
+    building: "—",
+    source,
+    sourceLabel: notification.sourceDetail ?? backendSourceLabelMap[source],
+    priority: backendPriorityMap[normalizeBackendEnum(notification.priority)] ?? "medium",
+    status: backendStatusMap[normalizeBackendEnum(notification.status)] ?? "new",
+    deviation: "—",
+    value: "—",
+    threshold: "—",
+    similarHistory: [],
+    relatedIncidents: [],
+    recommendation: "Проверьте детали уведомления в системе.",
+    responsible: "Не назначен",
+    comments: [`Код уведомления: ${notification.code}`],
+    requiresIncident: false,
+  }
+}
+
+const fallbackNotifications: FarmNotification[] = [
   {
     id: "N-2041",
     icon: Thermometer,
@@ -253,26 +486,69 @@ const notifications: FarmNotification[] = [
   },
 ]
 
-const kpiItems = [
-  { label: "Новые за 24 часа", value: "38", tone: "text-emerald-300" },
-  { label: "Критические", value: "6", tone: "text-red-300" },
-  { label: "Непрочитанные", value: "14", tone: "text-amber-300" },
-  { label: "Требуют создания инцидента", value: "5", tone: "text-sky-300" },
-]
+const buildKpiItems = (notifications: FarmNotification[]) => {
+  const now = Date.now()
+  const last24HoursStart = now - 24 * 60 * 60 * 1000
+
+  return [
+    {
+      label: "Новые за 24 часа",
+      value: notifications
+        .filter((notification) => {
+          const timestamp = getNotificationTimestamp(notification)
+
+          return timestamp !== undefined && timestamp >= last24HoursStart
+        })
+        .length.toString(),
+      tone: "text-emerald-300",
+    },
+    {
+      label: "Критические",
+      value: notifications
+        .filter((notification) => notification.priority === "critical")
+        .length.toString(),
+      tone: "text-red-300",
+    },
+    {
+      label: "Непрочитанные",
+      value: notifications
+        .filter((notification) => notification.status === "new")
+        .length.toString(),
+      tone: "text-amber-300",
+    },
+    {
+      label: "Требуют создания инцидента",
+      value: notifications
+        .filter((notification) => notificationNeedsIncident(notification))
+        .length.toString(),
+      tone: "text-sky-300",
+    },
+  ]
+}
 
 function FieldSelect({
   label,
   options,
+  value,
+  onChange,
 }: {
   label: string
-  options: string[]
+  options: SelectOption[]
+  value: string
+  onChange: (value: string) => void
 }) {
   return (
     <label className="flex min-w-0 flex-col gap-1.5">
       <span className="text-xs uppercase tracking-wide text-zinc-500">{label}</span>
-      <select className="h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition-colors hover:bg-zinc-50 focus:border-zinc-500">
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition-colors hover:bg-zinc-50 focus:border-zinc-500"
+      >
         {options.map((option) => (
-          <option key={option}>{option}</option>
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
         ))}
       </select>
     </label>
@@ -281,31 +557,67 @@ function FieldSelect({
 
 function NotificationActions({
   onOpen,
+  onCreateIncident,
+  canCreateIncident = true,
 }: {
   onOpen: () => void
+  onCreateIncident: () => void
+  canCreateIncident?: boolean
 }) {
   const actionClass =
     "h-8 border-zinc-300 bg-white px-2.5 text-xs text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
 
   return (
     <div className="flex flex-wrap gap-2" >
-      <Button variant="outline" size="sm" className={actionClass} onClick={onOpen}>
+      <Button
+        variant="outline"
+        size="sm"
+        className={actionClass}
+        onClick={(event) => {
+          event.stopPropagation()
+          onOpen()
+        }}
+      >
         <Eye className="size-3.5" />
         Открыть
       </Button>
-      <Button variant="outline" size="sm" className={actionClass}>
+      <Button
+        variant="outline"
+        size="sm"
+        className={actionClass}
+        disabled={!canCreateIncident}
+        onClick={(event) => {
+          event.stopPropagation()
+          onCreateIncident()
+        }}
+      >
         <ClipboardPlus className="size-3.5" />
         Создать инцидент
       </Button>
-      <Button variant="outline" size="sm" className={actionClass}>
+      <Button
+        variant="outline"
+        size="sm"
+        className={actionClass}
+        onClick={(event) => event.stopPropagation()}
+      >
         <UserPlus className="size-3.5" />
         Назначить
       </Button>
-      <Button variant="outline" size="sm" className={actionClass}>
+      <Button
+        variant="outline"
+        size="sm"
+        className={actionClass}
+        onClick={(event) => event.stopPropagation()}
+      >
         <PauseCircle className="size-3.5" />
         Отложить
       </Button>
-      <Button variant="outline" size="sm" className={actionClass}>
+      <Button
+        variant="outline"
+        size="sm"
+        className={actionClass}
+        onClick={(event) => event.stopPropagation()}
+      >
         <CheckCircle2 className="size-3.5" />
         Прочитано
       </Button>
@@ -315,14 +627,26 @@ function NotificationActions({
 
 function NotificationDetails({
   notification,
+  variant = "panel",
+  onCreateIncident,
 }: {
   notification: FarmNotification
+  variant?: "panel" | "dialog"
+  onCreateIncident?: (notification: FarmNotification) => void
 }) {
   const SourceIcon = sourceIcons[notification.source]
+  const canCreateIncident = notification.status !== "incident"
 
   return (
-    <aside className="flex h-full min-h-0 flex-col border-l border-zinc-200 bg-white rounded-br-[28px]">
-      <div className="border-b border-zinc-200 px-5 py-4">
+    <aside
+      className={cn(
+        "flex min-h-0 flex-col bg-white",
+        variant === "panel"
+          ? "h-full border-l border-zinc-200 rounded-br-[28px]"
+          : "max-h-[82vh]",
+      )}
+    >
+      <div className={cn("border-b border-zinc-200 px-5 py-4", variant === "dialog" && "pr-12")}>
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wide text-zinc-500">Детали</p>
@@ -453,7 +777,11 @@ function NotificationDetails({
           <UserPlus className="size-4" />
           Назначить ответственного
         </Button>
-        <Button className="bg-red-600 text-white hover:bg-red-700">
+        <Button
+          className="bg-red-600 text-white hover:bg-red-700"
+          disabled={!canCreateIncident}
+          onClick={() => onCreateIncident?.(notification)}
+        >
           <ClipboardPlus className="size-4" />
           Создать инцидент
         </Button>
@@ -463,37 +791,305 @@ function NotificationDetails({
 }
 
 export function NotificationsPage() {
-  const [activeNotificationId, setActiveNotificationId] = useState(notifications[0].id)
+  const [notifications, setNotifications] = useState<FarmNotification[]>(fallbackNotifications)
+  const [activeNotificationId, setActiveNotificationId] = useState(fallbackNotifications[0].id)
+  const [detailsNotificationId, setDetailsNotificationId] = useState<string | null>(null)
+  const [incidentNotificationId, setIncidentNotificationId] = useState<string | null>(null)
+  const [incidentForm, setIncidentForm] = useState<IncidentFormState>(emptyIncidentForm)
+  const [isCreatingIncident, setIsCreatingIncident] = useState(false)
+  const [incidentError, setIncidentError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [filters, setFilters] = useState<NotificationFilters>(defaultFilters)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const activeNotification =
-    notifications.find((notification) => notification.id === activeNotificationId) ??
-    notifications[0]
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadNotifications() {
+      setIsLoading(true)
+
+      try {
+        const response = await fetch("/api/notifications", { cache: "no-store" })
+
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`)
+        }
+
+        const data = (await response.json()) as BackendNotification[]
+        const nextNotifications = data.map(toFarmNotification)
+
+        if (!isCancelled) {
+          setNotifications(nextNotifications)
+          setActiveNotificationId(nextNotifications[0]?.id ?? "")
+          setLoadError(null)
+        }
+      } catch {
+        if (!isCancelled) {
+          setNotifications(fallbackNotifications)
+          setActiveNotificationId(fallbackNotifications[0].id)
+          setLoadError("Бэкенд недоступен, показаны тестовые уведомления")
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadNotifications()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [])
+
+  const typeFilterOptions = useMemo(
+    () => buildTextFilterOptions(notifications.map((notification) => notification.type), "Все типы", false),
+    [notifications],
+  )
+  const farmFilterOptions = useMemo(
+    () => buildTextFilterOptions(notifications.map((notification) => notification.farm), "Все фермы"),
+    [notifications],
+  )
+  const buildingFilterOptions = useMemo(
+    () =>
+      buildTextFilterOptions(
+        notifications.map((notification) => notification.building),
+        "Все птичники",
+      ),
+    [notifications],
+  )
+  const kpiItems = useMemo(() => buildKpiItems(notifications), [notifications])
 
   const filteredNotifications = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
+    const now = Date.now()
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
 
-    if (!query) {
-      return notifications
+    return notifications.filter((notification) => {
+      const notificationTimestamp = getNotificationTimestamp(notification)
+      const matchesPeriod =
+        filters.period === "all" ||
+        (notificationTimestamp !== undefined &&
+          ((filters.period === "24h" && notificationTimestamp >= now - 24 * 60 * 60 * 1000) ||
+            (filters.period === "today" && notificationTimestamp >= startOfToday.getTime()) ||
+            (filters.period === "7d" && notificationTimestamp >= now - 7 * 24 * 60 * 60 * 1000) ||
+            (filters.period === "month" && notificationTimestamp >= now - 30 * 24 * 60 * 60 * 1000)))
+
+      const matchesSearch =
+        !query ||
+        [
+          notification.title,
+          notification.description,
+          notification.fullText,
+          notification.id,
+          notification.farm,
+          notification.building,
+          notification.sourceLabel,
+          notification.type,
+          notification.priority,
+          notification.status,
+          notification.source,
+          priorityConfig[notification.priority].label,
+          statusConfig[notification.status].label,
+          notification.comments.join(" "),
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(query)
+
+      return (
+        matchesSearch &&
+        matchesPeriod &&
+        (filters.type === "all" || notification.type === filters.type) &&
+        (filters.farm === "all" || notification.farm === filters.farm) &&
+        (filters.building === "all" || notification.building === filters.building) &&
+        (filters.priority === "all" || notification.priority === filters.priority) &&
+        (filters.status === "all" || notification.status === filters.status) &&
+        (filters.source === "all" || notification.source === filters.source)
+      )
+    })
+  }, [filters, notifications, searchQuery])
+
+  const activeNotification =
+    filteredNotifications.find((notification) => notification.id === activeNotificationId) ??
+    filteredNotifications[0] ??
+    null
+
+  const detailsNotification =
+    notifications.find((notification) => notification.id === detailsNotificationId) ?? null
+
+  const incidentNotification =
+    notifications.find((notification) => notification.id === incidentNotificationId) ?? null
+
+  const hasActiveFilters =
+    Boolean(searchQuery.trim()) ||
+    Object.values(filters).some((filterValue) => filterValue !== "all")
+
+  const updateFilter = <Key extends keyof NotificationFilters>(
+    key: Key,
+    value: NotificationFilters[Key],
+  ) => {
+    setFilters((currentFilters) => ({
+      ...currentFilters,
+      [key]: value,
+    }))
+  }
+
+  const resetFilters = () => {
+    setSearchQuery("")
+    setFilters(defaultFilters)
+  }
+
+  const setNotificationStatus = (id: string, status: NotificationStatus) => {
+    setNotifications((currentNotifications) =>
+      currentNotifications.map((notification) =>
+        notification.id === id ? { ...notification, status } : notification,
+      ),
+    )
+  }
+
+  const markNotificationAsViewed = async (notification: FarmNotification) => {
+    if (notification.status !== "new") {
+      return
     }
 
-    return notifications.filter((notification) =>
-      [
-        notification.title,
-        notification.description,
-        notification.farm,
-        notification.building,
-        notification.sourceLabel,
-        notification.type,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(query),
-    )
-  }, [searchQuery])
+    setNotificationStatus(notification.id, "viewed")
+
+    try {
+      const response = await fetch(`/api/notifications/${notification.id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify("VIEWED"),
+      })
+
+      if (!response.ok) {
+        const responseBody = await response.text()
+
+        throw new Error(responseBody || "Failed to update notification status")
+      }
+
+      setLoadError(null)
+    } catch {
+      setNotificationStatus(notification.id, "new")
+      setLoadError("Не удалось отметить уведомление как просмотренное")
+    }
+  }
+
+  const openNotificationDetails = (notification: FarmNotification) => {
+    setActiveNotificationId(notification.id)
+    setDetailsNotificationId(notification.id)
+    void markNotificationAsViewed(notification)
+  }
+
+  const openCreateIncidentDialog = (notification: FarmNotification) => {
+    setActiveNotificationId(notification.id)
+    setDetailsNotificationId(null)
+    setIncidentNotificationId(notification.id)
+    setIncidentError(null)
+    setIncidentForm({
+      title: notification.title,
+      description: notification.fullText || notification.description,
+      priority: notification.priority,
+      responsible: "",
+      decisionComment: "",
+    })
+  }
+
+  const closeCreateIncidentDialog = () => {
+    setIncidentNotificationId(null)
+    setIncidentError(null)
+    setIncidentForm(emptyIncidentForm)
+  }
+
+  const updateIncidentForm = <Key extends keyof IncidentFormState>(
+    key: Key,
+    value: IncidentFormState[Key],
+  ) => {
+    setIncidentForm((currentForm) => ({
+      ...currentForm,
+      [key]: value,
+    }))
+  }
+
+  const handleCreateIncident = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!incidentNotification || isCreatingIncident) {
+      return
+    }
+
+    setIsCreatingIncident(true)
+    setIncidentError(null)
+
+    try {
+      const response = await fetch(
+        `/api/incidents/from-notification/${incidentNotification.id}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: incidentForm.title.trim(),
+            description: incidentForm.description.trim(),
+            priority: incidentPriorityMap[incidentForm.priority],
+            responsible: incidentForm.responsible.trim() || null,
+            decisionComment: incidentForm.decisionComment.trim() || null,
+          }),
+        },
+      )
+      const responseBody = await response.text()
+
+      if (!response.ok) {
+        throw new Error(responseBody || "Не удалось создать инцидент")
+      }
+
+      let createdIncident: CreatedIncident | null = null
+
+      try {
+        createdIncident = responseBody ? JSON.parse(responseBody) : null
+      } catch {
+        createdIncident = null
+      }
+
+      setNotifications((currentNotifications) =>
+        currentNotifications.map((notification) => {
+          if (notification.id !== incidentNotification.id) {
+            return notification
+          }
+
+          const incidentCode = createdIncident?.code
+
+          return {
+            ...notification,
+            status: "incident",
+            requiresIncident: false,
+            relatedIncidents:
+              incidentCode && !notification.relatedIncidents.includes(incidentCode)
+                ? [...notification.relatedIncidents, incidentCode]
+                : notification.relatedIncidents,
+            comments: incidentCode
+              ? [...notification.comments, `Создан инцидент: ${incidentCode}`]
+              : notification.comments,
+          }
+        }),
+      )
+      closeCreateIncidentDialog()
+    } catch (error) {
+      setIncidentError(error instanceof Error ? error.message : "Не удалось создать инцидент")
+    } finally {
+      setIsCreatingIncident(false)
+    }
+  }
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col bg-background rounded-[28px]">
+    <>
+      <main className="flex min-h-0 flex-1 flex-col bg-background rounded-[28px]">
       <div className="border-b border-zinc-200 px-6 py-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
@@ -505,6 +1101,8 @@ export function NotificationsPage() {
                 <Clock3 className="size-4" />
                 Обновлено: 15.04.2026 10:42
               </span>
+              {isLoading && <span>Загрузка из бэкенда...</span>}
+              {loadError && <span className="text-amber-600">{loadError}</span>}
             </div>
           </div>
 
@@ -545,35 +1143,65 @@ export function NotificationsPage() {
       </section>
 
       <section className="border-b border-zinc-200 px-6 py-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-medium text-zinc-700">
-          <Filter className="size-4 text-zinc-500" />
-          Фильтры
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-zinc-700">
+            <Filter className="size-4 text-zinc-500" />
+            Фильтры
+          </div>
+          {hasActiveFilters && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={resetFilters}
+              className="h-8 border-zinc-300 bg-white px-3 text-xs text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+            >
+              Сбросить
+            </Button>
+          )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
           <FieldSelect
             label="Тип уведомления"
-            options={["Все типы", "Микроклимат", "Ресурсы", "Воздух", "Инциденты"]}
+            value={filters.type}
+            onChange={(value) => updateFilter("type", value)}
+            options={typeFilterOptions}
           />
-          <FieldSelect label="Ферма" options={["Все фермы", "Ферма 1", "Ферма 2", "Ферма 3"]} />
+          <FieldSelect
+            label="Ферма"
+            value={filters.farm}
+            onChange={(value) => updateFilter("farm", value)}
+            options={farmFilterOptions}
+          />
           <FieldSelect
             label="Птичник"
-            options={["Все птичники", "Птичник 1", "Птичник 2", "Птичник 4", "Птичник 5"]}
+            value={filters.building}
+            onChange={(value) => updateFilter("building", value)}
+            options={buildingFilterOptions}
           />
           <FieldSelect
             label="Дата / период"
-            options={["Последние 24 часа", "Сегодня", "7 дней", "Месяц"]}
+            value={filters.period}
+            onChange={(value) => updateFilter("period", value as DateFilter)}
+            options={dateFilterOptions}
           />
           <FieldSelect
             label="Приоритет"
-            options={["Любой", "Критический", "Высокий", "Средний", "Низкий"]}
+            value={filters.priority}
+            onChange={(value) => updateFilter("priority", value as NotificationFilters["priority"])}
+            options={priorityFilterOptions}
           />
           <FieldSelect
             label="Статус прочтения"
-            options={["Все статусы", "Новое", "Просмотрено", "Передано", "Закрыто"]}
+            value={filters.status}
+            onChange={(value) => updateFilter("status", value as NotificationFilters["status"])}
+            options={statusFilterOptions}
           />
           <FieldSelect
             label="Источник данных"
-            options={["Все источники", "Датчик", "Система", "Сотрудник", "Аналитика"]}
+            value={filters.source}
+            onChange={(value) => updateFilter("source", value as NotificationFilters["source"])}
+            options={sourceFilterOptions}
           />
         </div>
       </section>
@@ -590,10 +1218,14 @@ export function NotificationsPage() {
           </div>
 
           <div className="space-y-3">
-            {filteredNotifications.map((notification) => {
+            {filteredNotifications.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
+                По выбранным фильтрам уведомлений не найдено.
+              </div>
+            ) : filteredNotifications.map((notification) => {
               const Icon = notification.icon
               const SourceIcon = sourceIcons[notification.source]
-              const isActive = notification.id === activeNotification.id
+              const isActive = notification.id === activeNotification?.id
 
               return (
                 <article
@@ -662,7 +1294,9 @@ export function NotificationsPage() {
                     </div>
 
                     <NotificationActions
-                      onOpen={() => setActiveNotificationId(notification.id)}
+                      onOpen={() => openNotificationDetails(notification)}
+                      onCreateIncident={() => openCreateIncidentDialog(notification)}
+                      canCreateIncident={notification.status !== "incident"}
                     />
                   </div>
                 </article>
@@ -671,14 +1305,177 @@ export function NotificationsPage() {
           </div>
 
           <div className="mt-5 lg:hidden">
-            <NotificationDetails notification={activeNotification} />
+            {activeNotification ? (
+              <NotificationDetails
+                notification={activeNotification}
+                onCreateIncident={openCreateIncidentDialog}
+              />
+            ) : (
+              <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">
+                Уведомлений пока нет.
+              </div>
+            )}
           </div>
         </section>
 
         <div className="hidden min-h-0 lg:block">
-          <NotificationDetails notification={activeNotification} />
+          {activeNotification ? (
+            <NotificationDetails
+              notification={activeNotification}
+              onCreateIncident={openCreateIncidentDialog}
+            />
+          ) : (
+            <aside className="flex h-full items-center justify-center border-l border-zinc-200 bg-white p-5 text-sm text-zinc-500 rounded-br-[28px]">
+              Уведомлений пока нет.
+            </aside>
+          )}
         </div>
       </div>
-    </main>
+      </main>
+
+      <Dialog
+        open={detailsNotification !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailsNotificationId(null)
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-[min(920px,calc(100%-2rem))] overflow-hidden p-0">
+          <DialogTitle className="sr-only">
+            {detailsNotification?.title ?? "Детали уведомления"}
+          </DialogTitle>
+          {detailsNotification && (
+            <NotificationDetails
+              notification={detailsNotification}
+              variant="dialog"
+              onCreateIncident={openCreateIncidentDialog}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={incidentNotification !== null}
+        onOpenChange={(open) => {
+          if (!open && !isCreatingIncident) {
+            closeCreateIncidentDialog()
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-[min(720px,calc(100%-2rem))] overflow-y-auto p-0">
+          <div className="border-b border-zinc-200 px-6 py-5 pr-12">
+            <DialogTitle className="text-base font-semibold text-foreground">
+              Создать инцидент
+            </DialogTitle>
+            {incidentNotification && (
+              <p className="mt-2 text-sm text-zinc-500">
+                {incidentNotification.title}
+              </p>
+            )}
+          </div>
+
+          <form className="space-y-5 p-6" onSubmit={handleCreateIncident}>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">
+                Название
+              </span>
+              <Input
+                required
+                value={incidentForm.title}
+                onChange={(event) => updateIncidentForm("title", event.target.value)}
+                className="border-zinc-300 bg-white text-zinc-900"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">
+                Описание
+              </span>
+              <Textarea
+                value={incidentForm.description}
+                onChange={(event) => updateIncidentForm("description", event.target.value)}
+                className="min-h-28 border-zinc-300 bg-white text-zinc-900"
+              />
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs uppercase tracking-wide text-zinc-500">
+                  Приоритет
+                </span>
+                <select
+                  value={incidentForm.priority}
+                  onChange={(event) =>
+                    updateIncidentForm("priority", event.target.value as NotificationPriority)
+                  }
+                  className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition-colors hover:bg-zinc-50 focus:border-zinc-500"
+                >
+                  {priorityFilterOptions
+                    .filter((option) => option.value !== "all")
+                    .map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs uppercase tracking-wide text-zinc-500">
+                  Ответственный
+                </span>
+                <Input
+                  value={incidentForm.responsible}
+                  onChange={(event) =>
+                    updateIncidentForm("responsible", event.target.value)
+                  }
+                  className="border-zinc-300 bg-white text-zinc-900"
+                />
+              </label>
+            </div>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">
+                Комментарий
+              </span>
+              <Textarea
+                value={incidentForm.decisionComment}
+                onChange={(event) =>
+                  updateIncidentForm("decisionComment", event.target.value)
+                }
+                className="min-h-24 border-zinc-300 bg-white text-zinc-900"
+              />
+            </label>
+
+            {incidentError && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {incidentError}
+              </div>
+            )}
+
+            <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 pt-5">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isCreatingIncident}
+                onClick={closeCreateIncidentDialog}
+                className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+              >
+                Отмена
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreatingIncident}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                <ClipboardPlus className="size-4" />
+                {isCreatingIncident ? "Создание..." : "Создать инцидент"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

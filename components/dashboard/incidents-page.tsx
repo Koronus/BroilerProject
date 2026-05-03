@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
   CheckCircle2,
@@ -26,6 +26,24 @@ import { cn } from "@/lib/utils"
 
 type IncidentPriority = "critical" | "high" | "medium" | "low"
 type IncidentStatus = "new" | "inProgress" | "overdue" | "closed"
+
+interface BackendIncident {
+  id: string
+  code?: string | null
+  title: string
+  description?: string | null
+  status: string
+  priority: string
+  source: string
+  notificationId?: string | null
+  responsible?: string | null
+  decisionComment?: string | null
+  createdAt?: string | null
+  detectedAt?: string | null
+  updatedAt?: string | null
+  resolvedAt?: string | null
+  closedAt?: string | null
+}
 
 interface Incident {
   id: string
@@ -97,7 +115,116 @@ const statusConfig: Record<IncidentStatus, { label: string; className: string }>
   },
 }
 
-const incidents: Incident[] = [
+const backendPriorityMap: Record<string, IncidentPriority> = {
+  CRITICAL: "critical",
+  HIGH: "high",
+  MEDIUM: "medium",
+  LOW: "low",
+}
+
+const backendStatusMap: Record<string, IncidentStatus> = {
+  OPEN: "new",
+  IN_PROGRESS: "inProgress",
+  RESOLVED: "closed",
+  CLOSED: "closed",
+  CANCELLED: "closed",
+}
+
+const backendSourceLabelMap: Record<string, string> = {
+  NOTIFICATION: "Уведомление",
+  MANUAL: "Ручной",
+  SYSTEM: "Система",
+  ANALYTICS: "Аналитика",
+}
+
+const backendSourceIconMap: Record<string, LucideIcon> = {
+  NOTIFICATION: AlertTriangle,
+  MANUAL: UserRound,
+  SYSTEM: Wrench,
+  ANALYTICS: ShieldAlert,
+}
+
+const unknownValue = "—"
+
+const normalizeBackendEnum = (value?: string | null) => value?.toUpperCase() ?? ""
+
+const formatBackendDateTime = (value?: string | null) => {
+  if (!value) {
+    return { date: unknownValue, time: unknownValue }
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return { date: unknownValue, time: unknownValue }
+  }
+
+  return {
+    date: date.toLocaleDateString("ru-RU"),
+    time: date.toLocaleTimeString("ru-RU", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  }
+}
+
+const toIncident = (incident: BackendIncident): Incident => {
+  const source = normalizeBackendEnum(incident.source)
+  const { date, time } = formatBackendDateTime(incident.detectedAt ?? incident.createdAt)
+
+  return {
+    id: incident.code ?? incident.id,
+    date,
+    time,
+    type: backendSourceLabelMap[source] ?? "Инцидент",
+    icon: backendSourceIconMap[source] ?? AlertTriangle,
+    shortDescription: incident.title,
+    description: incident.description ?? "Описание не указано.",
+    farm: unknownValue,
+    poultryHouse: unknownValue,
+    priority: backendPriorityMap[normalizeBackendEnum(incident.priority)] ?? "medium",
+    status: backendStatusMap[normalizeBackendEnum(incident.status)] ?? "new",
+    responsible: incident.responsible ?? "Не назначен",
+    comment: incident.decisionComment ?? "Комментарий не указан.",
+  }
+}
+
+const buildKpiItems = (incidents: Incident[]) => [
+  {
+    label: "Открытые",
+    value: incidents
+      .filter((incident) => incident.status !== "closed")
+      .length.toString(),
+    icon: Clock3,
+    tone: "text-sky-600",
+  },
+  {
+    label: "Критические",
+    value: incidents
+      .filter((incident) => incident.priority === "critical")
+      .length.toString(),
+    icon: AlertTriangle,
+    tone: "text-red-600",
+  },
+  {
+    label: "Просроченные",
+    value: incidents
+      .filter((incident) => incident.status === "overdue")
+      .length.toString(),
+    icon: TimerReset,
+    tone: "text-amber-600",
+  },
+  {
+    label: "Закрытые",
+    value: incidents
+      .filter((incident) => incident.status === "closed")
+      .length.toString(),
+    icon: CheckCircle2,
+    tone: "text-emerald-600",
+  },
+]
+
+const fallbackIncidents: Incident[] = [
   {
     id: "INC-1",
     date: "15.04.2026",
@@ -178,13 +305,6 @@ const incidents: Incident[] = [
     responsible: "Не назначен",
     comment: "Ответственный не назначен, срок первичной реакции истек.",
   },
-]
-
-const kpiItems = [
-  { label: "Открытые", value: "27", icon: Clock3, tone: "text-sky-600" },
-  { label: "Критические", value: "6", icon: AlertTriangle, tone: "text-red-600" },
-  { label: "Просроченные", value: "4", icon: TimerReset, tone: "text-amber-600" },
-  { label: "Закрытые за 7 дней", value: "18", icon: CheckCircle2, tone: "text-emerald-600" },
 ]
 
 function FieldSelect({
@@ -298,11 +418,52 @@ function IncidentDetails({ incident }: { incident: Incident }) {
 }
 
 export function IncidentsPage() {
-  const [activeIncidentId, setActiveIncidentId] = useState(incidents[0].id)
+  const [incidents, setIncidents] = useState<Incident[]>(fallbackIncidents)
+  const [activeIncidentId, setActiveIncidentId] = useState(fallbackIncidents[0].id)
   const [searchQuery, setSearchQuery] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const activeIncident =
-    incidents.find((incident) => incident.id === activeIncidentId) ?? incidents[0]
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadIncidents() {
+      setIsLoading(true)
+
+      try {
+        const response = await fetch("/api/incidents", { cache: "no-store" })
+
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`)
+        }
+
+        const data = (await response.json()) as BackendIncident[]
+        const nextIncidents = data.map(toIncident)
+
+        if (!isCancelled) {
+          setIncidents(nextIncidents)
+          setActiveIncidentId(nextIncidents[0]?.id ?? "")
+          setLoadError(null)
+        }
+      } catch {
+        if (!isCancelled) {
+          setIncidents(fallbackIncidents)
+          setActiveIncidentId(fallbackIncidents[0].id)
+          setLoadError("Бэкенд недоступен, показаны тестовые инциденты")
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadIncidents()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [])
 
   const filteredIncidents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -323,9 +484,16 @@ export function IncidentsPage() {
       ]
         .join(" ")
         .toLowerCase()
-        .includes(query),
+          .includes(query),
     )
-  }, [searchQuery])
+  }, [incidents, searchQuery])
+
+  const activeIncident =
+    filteredIncidents.find((incident) => incident.id === activeIncidentId) ??
+    filteredIncidents[0] ??
+    null
+
+  const kpiItems = useMemo(() => buildKpiItems(incidents), [incidents])
 
   return (
     <main className="flex min-h-0 flex-1 flex-col bg-background rounded-[28px] ">
@@ -338,6 +506,10 @@ export function IncidentsPage() {
             <p className="mt-2 text-sm text-zinc-500">
               Контроль отклонений, ответственных и статусов выполнения
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-zinc-500">
+              {isLoading && <span>Загрузка из бэкенда...</span>}
+              {loadError && <span className="text-amber-600">{loadError}</span>}
+            </div>
           </div>
 
           <div className="flex w-full flex-col gap-3 sm:flex-row xl:w-auto">
@@ -433,9 +605,15 @@ export function IncidentsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200">
-                  {filteredIncidents.map((incident) => {
+                  {filteredIncidents.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-zinc-500">
+                        Инцидентов пока нет.
+                      </td>
+                    </tr>
+                  ) : filteredIncidents.map((incident) => {
                     const Icon = incident.icon
-                    const isActive = incident.id === activeIncident.id
+                    const isActive = incident.id === activeIncident?.id
 
                     return (
                       <tr
@@ -498,12 +676,24 @@ export function IncidentsPage() {
           </div>
 
           <div className="mt-5 lg:hidden">
-            <IncidentDetails incident={activeIncident} />
+            {activeIncident ? (
+              <IncidentDetails incident={activeIncident} />
+            ) : (
+              <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">
+                Инцидентов пока нет.
+              </div>
+            )}
           </div>
         </section>
 
         <div className="hidden min-h-0 lg:block">
-          <IncidentDetails incident={activeIncident} />
+          {activeIncident ? (
+            <IncidentDetails incident={activeIncident} />
+          ) : (
+            <aside className="flex h-full items-center justify-center border-l border-zinc-200 bg-white p-5 text-sm text-zinc-500 rounded-br-[28px]">
+              Инцидентов пока нет.
+            </aside>
+          )}
         </div>
       </div>
     </main>
