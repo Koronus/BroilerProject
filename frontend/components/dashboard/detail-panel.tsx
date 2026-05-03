@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { AlertTriangle, ClipboardPlus, FileText, X } from "lucide-react"
 import {
   Area,
@@ -13,13 +14,27 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { metricsDetails } from "@/lib/metricks-detail"
+import { CreateTaskModal } from "./create-task-modal"
+import { ReportsModal } from "./reports-modal"
+import { type BirdAgeGroup } from "@/components/dashboard/kpi-grid"
 
 interface DetailPanelProps {
   onClose: () => void
   activeMetric: string
+  activeCategory?: string
+  selectedAge?: BirdAgeGroup
+  selectedWorkshopIds?: string[]
+  selectedHouseIds?: string[]
+  selectedBatchIds?: string[]
+  selectedAgeRangeId?: string
 }
 
-export function DetailPanel({ onClose, activeMetric }: DetailPanelProps) {
+
+
+export function DetailPanel({ onClose, 
+  activeMetric }: DetailPanelProps) {
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState(false)
   const metricData = metricsDetails[activeMetric]
 
   if (!metricData) {
@@ -40,6 +55,216 @@ export function DetailPanel({ onClose, activeMetric }: DetailPanelProps) {
       </aside>
     )
   }
+
+  // ========== ФУНКЦИОНАЛ ОТЧЕТОВ ==========
+
+  // Полный отчет (сводный по всем данным)
+  const handleFullReport = () => {
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Полный отчет - ${metricData.title}</title>
+            <style>
+              body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; max-width: 1200px; margin: 0 auto; }
+              h1 { color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
+              h2 { color: #334155; margin-top: 30px; border-left: 4px solid #3b82f6; padding-left: 12px; }
+              .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
+              .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; }
+              .info-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px; }
+              .info-value { font-size: 24px; font-weight: bold; color: #1e293b; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+              th { background-color: #f1f5f9; font-weight: 600; }
+              .status-critical { color: #dc2626; font-weight: bold; }
+              .status-warning { color: #f59e0b; font-weight: bold; }
+              .status-normal { color: #10b981; font-weight: bold; }
+              .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8; }
+            </style>
+          </head>
+          <body>
+            <h1>📊 Полный отчет: ${metricData.title}</h1>
+            <p><strong>📅 Дата генерации:</strong> ${new Date().toLocaleString('ru-RU')}</p>
+            
+            <div class="info-grid">
+              <div class="info-card">
+                <div class="info-label">Текущее значение</div>
+                <div class="info-value">${metricData.currentValue}</div>
+                <span class="status-${metricData.status}">${getStatusText(metricData.status)}</span>
+              </div>
+              <div class="info-card">
+                <div class="info-label">Целевой диапазон</div>
+                <div class="info-value">${metricData.targetRange}</div>
+              </div>
+            </div>
+            
+            <h2>📈 Динамика за 7 дней</h2>
+            <table><thead><tr><th>День</th><th>Значение</th></tr></thead>
+            <tbody>${metricData.chartData.map(item => `<tr><td>${item.day}</td><td>${item.value}</td></tr>`).join('')}</tbody>
+            <table>
+            
+            <h2>📍 Проблемные локации</h2>
+            ${metricData.problemLocations.length > 0 ? `
+            <table><thead><tr><th>Локация</th><th>Значение</th><th>Статус</th></tr></thead>
+            <tbody>${metricData.problemLocations.map(loc => `<tr><td>${loc.name}</td><td>${loc.value}</td><td class="status-${loc.status}">${loc.status === 'critical' ? 'Критично' : 'Внимание'}</td></tr>`).join('')}</tbody>
+            </table>
+            ` : '<p>Отклонений по локациям не найдено</p>'}
+            
+            ${metricData.relatedIncident ? `
+            <h2>⚠️ Связанный инцидент</h2>
+            <div style="background: #fef3c7; padding: 15px; border-radius: 12px;">
+              <strong>${metricData.relatedIncident.title}</strong>
+              <p style="margin-top: 8px;">${metricData.relatedIncident.description}</p>
+            </div>
+            ` : ''}
+            
+            <div class="footer">АгроКонтроль — Ситуационный центр</div>
+          </body>
+        </html>
+      `)
+       printWindow.document.close()
+    
+    // НЕ вызываем print() автоматически!
+    // Пользователь сам нажмет кнопку "Сохранить как PDF"
+    
+    // Фокусируемся на новом окне
+    printWindow.focus()
+    
+    // Когда пользователь закроет окно - фокусируемся на исходной странице
+    printWindow.onbeforeunload = () => {
+      window.focus()
+    }
+    }
+  }
+
+  // PDF отчет (компактный)
+  const handlePDFReport = () => {
+  // Открываем окно с определенными размерами
+  const printWindow = window.open('', '_blank', 'width=1000,height=800,scrollbars=yes,resizable=yes')
+  
+  if (printWindow) {
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>PDF Отчет - ${metricData.title}</title>
+          <meta charset="UTF-8">
+          <style>
+            body { 
+              font-family: 'Segoe UI', Arial, sans-serif; 
+              padding: 40px; 
+              max-width: 1200px; 
+              margin: 0 auto; 
+              background: white;
+            }
+            h1 { color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
+            .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
+            .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; }
+            .info-value { font-size: 24px; font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+            th { background-color: #f1f5f9; }
+            .status-critical { color: #dc2626; }
+            .status-warning { color: #f59e0b; }
+            .status-normal { color: #10b981; }
+            .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8; }
+            .button-container {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              z-index: 1000;
+            }
+            .btn-close {
+              padding: 8px 16px;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: 500;
+              background: #ef4444;
+              color: white;
+              transition: all 0.2s;
+            }
+            .btn-close:hover { background: #dc2626; }
+            @media print {
+              .button-container { display: none; }
+              body { padding: 20px; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="button-container">
+            <button class="btn-close" onclick="window.close()">✖ Закрыть</button>
+          </div>
+          
+          <h1>📄 PDF Отчет: ${metricData.title}</h1>
+          <p><strong>📅 Дата генерации:</strong> ${new Date().toLocaleString('ru-RU')}</p>
+          
+          <div class="info-grid">
+            <div class="info-card">
+              <div class="info-value status-${metricData.status}">${metricData.currentValue}</div>
+              <div style="color: #64748b; margin-top: 5px;">Текущее значение</div>
+            </div>
+            <div class="info-card">
+              <div class="info-value">${metricData.targetRange}</div>
+              <div style="color: #64748b; margin-top: 5px;">Целевой диапазон</div>
+            </div>
+          </div>
+          
+          <h2>📈 Динамика за 7 дней</h2>
+          <table>
+            <thead>
+              <tr><th>День</th><th>Значение</th></tr>
+            </thead>
+            <tbody>
+              ${metricData.chartData.map(item => `<tr><td>${item.day}</td><td>${item.value}</td>`).join('')}
+            </tbody>
+          </table>
+          
+          <div class="footer">
+            АгроКонтроль — Ситуационный центр<br>
+            Отчет сгенерирован автоматически ${new Date().toLocaleString('ru-RU')}
+          </div>
+        </body>
+      </html>
+    `)
+    
+    printWindow.document.close()
+    
+    // Фокусируемся на новом окне
+    printWindow.focus()
+    
+    // Когда пользователь закроет окно - фокусируемся на исходной странице
+    printWindow.onbeforeunload = () => {
+      window.focus()
+    }
+  }
+}
+
+  // Excel отчет (CSV экспорт)
+  const handleExcelReport = () => {
+    const headers = ["Показатель", "Значение", "Норма", "Статус"]
+    const rows = [
+      [metricData.title, metricData.currentValue, metricData.targetRange, getStatusText(metricData.status)],
+      ...metricData.chartData.map(item => [`Динамика ${item.day}`, item.value, "", ""]),
+      ...metricData.problemLocations.map(loc => [`Проблема: ${loc.name}`, loc.value, "", loc.status])
+    ]
+    const csvContent = [headers, ...rows].map(row => row.join(",")).join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${metricData.title}_${new Date().toISOString().split("T")[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  
+
+ 
+
+  // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -96,144 +321,171 @@ export function DetailPanel({ onClose, activeMetric }: DetailPanelProps) {
   }
 
   return (
-    <aside className="dashboard-panel p-5 md:p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
-            Детализация
-          </p>
-          <h2 className="mt-2 break-words text-xl font-semibold text-zinc-950 dark:text-zinc-50">
-            {metricData.title}
-          </h2>
-        </div>
-        <button
-          onClick={onClose}
-          className="rounded-full border border-black/5 p-2 text-zinc-500 transition hover:bg-black/5 dark:border-white/10 dark:text-zinc-400 dark:hover:bg-white/8"
-          aria-label="Закрыть панель"
-        >
-          <X className="size-4" />
-        </button>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-        <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-            Текущее значение
-          </p>
-          <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
-            {metricData.currentValue}
+    <>
+      <aside className="dashboard-panel p-5 md:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
+              Детализация
+            </p>
+            <h2 className="mt-2 break-words text-xl font-semibold text-zinc-950 dark:text-zinc-50">
+              {metricData.title}
+            </h2>
           </div>
-          <Badge className={`mt-3 border ${getStatusColor(metricData.status)}`}>
-            {getStatusText(metricData.status)}
-          </Badge>
+          <button
+            onClick={onClose}
+            className="rounded-full border border-black/5 p-2 text-zinc-500 transition hover:bg-black/5 dark:border-white/10 dark:text-zinc-400 dark:hover:bg-white/8"
+            aria-label="Закрыть панель"
+          >
+            <X className="size-4" />
+          </button>
         </div>
 
-        <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-            Целевой диапазон
-          </p>
-          <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
-            {metricData.targetRange}
-          </div>
-          <Badge className="mt-3 border border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
-            Норма
-          </Badge>
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 7 дней</h3>
-        <div className="mt-4 h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={metricData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="detailMetric" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={getChartColor(metricData.status)} stopOpacity={0.28} />
-                  <stop offset="95%" stopColor={getChartColor(metricData.status)} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(113,113,122,0.16)" vertical={false} />
-              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={formatYAxis} domain={["auto", "auto"]} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "rgba(255,255,255,0.96)",
-                  border: "1px solid rgba(0,0,0,0.06)",
-                  borderRadius: "16px",
-                  color: "#18181b",
-                }}
-                formatter={formatTooltip}
-                labelStyle={{ color: "#71717a" }}
-              />
-              <Area type="monotone" dataKey="value" stroke={getChartColor(metricData.status)} strokeWidth={2.5} fillOpacity={1} fill="url(#detailMetric)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
-        <div className="mt-4 space-y-3">
-          {metricData.problemLocations.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-zinc-500 dark:border-white/10 dark:text-zinc-400">
-              Отклонений по локациям не найдено.
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              Текущее значение
+            </p>
+            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
+              {metricData.currentValue}
             </div>
-          ) : (
-            metricData.problemLocations.map((location) => (
-              <div
-                key={location.name}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 px-4 py-4 dark:border-white/8"
-              >
-                <span className="min-w-0 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">{location.name}</span>
-                <div className="flex items-center gap-2">
-                  <span className={location.status === "critical" ? "text-sm font-semibold text-red-600 dark:text-red-300" : "text-sm font-semibold text-amber-600 dark:text-amber-300"}>
-                    {location.value}
-                  </span>
-                  <Badge
-                    className={
-                      location.status === "critical"
-                        ? "border border-red-500/20 bg-red-500/12 text-red-600 dark:text-red-300"
-                        : "border border-amber-500/20 bg-amber-500/12 text-amber-600 dark:text-amber-300"
-                    }
-                  >
-                    {location.status === "critical" ? "Критично" : "Внимание"}
-                  </Badge>
-                </div>
+            <Badge className={`mt-3 border ${getStatusColor(metricData.status)}`}>
+              {getStatusText(metricData.status)}
+            </Badge>
+          </div>
+
+          <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              Целевой диапазон
+            </p>
+            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
+              {metricData.targetRange}
+            </div>
+            <Badge className="mt-3 border border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
+              Норма
+            </Badge>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 7 дней</h3>
+          <div className="mt-4 h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={metricData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="detailMetric" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={getChartColor(metricData.status)} stopOpacity={0.28} />
+                    <stop offset="95%" stopColor={getChartColor(metricData.status)} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(113,113,122,0.16)" vertical={false} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={formatYAxis} domain={["auto", "auto"]} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "rgba(255,255,255,0.96)",
+                    border: "1px solid rgba(0,0,0,0.06)",
+                    borderRadius: "16px",
+                    color: "#18181b",
+                  }}
+                  formatter={formatTooltip}
+                  labelStyle={{ color: "#71717a" }}
+                />
+                <Area type="monotone" dataKey="value" stroke={getChartColor(metricData.status)} strokeWidth={2.5} fillOpacity={1} fill="url(#detailMetric)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
+          <div className="mt-4 space-y-3">
+            {metricData.problemLocations.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-zinc-500 dark:border-white/10 dark:text-zinc-400">
+                Отклонений по локациям не найдено.
               </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {metricData.relatedIncident && (
-        <div className="mt-5 rounded-[24px] border border-amber-500/20 bg-amber-500/8 p-5">
-          <div className="flex gap-3">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
-            <div>
-              <h4 className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                {metricData.relatedIncident.title}
-              </h4>
-              <p className="mt-1 text-sm text-amber-700/80 dark:text-amber-200/85">
-                {metricData.relatedIncident.description}
-              </p>
-            </div>
+            ) : (
+              metricData.problemLocations.map((location) => (
+                <div
+                  key={location.name}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 px-4 py-4 dark:border-white/8"
+                >
+                  <span className="min-w-0 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">{location.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={location.status === "critical" ? "text-sm font-semibold text-red-600 dark:text-red-300" : "text-sm font-semibold text-amber-600 dark:text-amber-300"}>
+                      {location.value}
+                    </span>
+                    <Badge
+                      className={
+                        location.status === "critical"
+                          ? "border border-red-500/20 bg-red-500/12 text-red-600 dark:text-red-300"
+                          : "border border-amber-500/20 bg-amber-500/12 text-amber-600 dark:text-amber-300"
+                      }
+                    >
+                      {location.status === "critical" ? "Критично" : "Внимание"}
+                    </Badge>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
-      )}
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <Button
-          variant="outline"
-          className="rounded-full border-black/10 bg-white/80 text-zinc-700 hover:bg-white dark:border-white/10 dark:bg-white/4 dark:text-zinc-200 dark:hover:bg-white/8"
-        >
-          <FileText className="size-4" />
-          Полный отчет
-        </Button>
-        <Button className="rounded-full bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200">
-          <ClipboardPlus className="size-4" />
-          Создать задачу
-        </Button>
-      </div>
-    </aside>
+        {metricData.relatedIncident && (
+          <div className="mt-5 rounded-[24px] border border-amber-500/20 bg-amber-500/8 p-5">
+            <div className="flex gap-3">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
+              <div>
+                <h4 className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                  {metricData.relatedIncident.title}
+                </h4>
+                <p className="mt-1 text-sm text-amber-700/80 dark:text-amber-200/85">
+                  {metricData.relatedIncident.description}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Кнопки */}
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setIsReportsModalOpen(true)}
+            className="rounded-full border-black/10 bg-white/80 text-zinc-700 hover:bg-white dark:border-white/10 dark:bg-white/4 dark:text-zinc-200 dark:hover:bg-white/8"
+          >
+            <FileText className="size-4" />
+            Отчеты
+          </Button>
+          <Button 
+            onClick={() => setIsTaskModalOpen(true)}
+            className="rounded-full bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+          >
+            <ClipboardPlus className="size-4" />
+            Создать задачу
+          </Button>
+        </div>
+      </aside>
+
+      {/* Модальное окно отчетов */}
+      <ReportsModal
+        isOpen={isReportsModalOpen}
+        onClose={() => setIsReportsModalOpen(false)}
+        onFullReport={handleFullReport}
+        onPDFReport={handlePDFReport}
+        onExcelReport={handleExcelReport}
+        
+      
+      />
+
+      {/* Модальное окно создания задачи */}
+      <CreateTaskModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
+        metricTitle={metricData.title}
+        metricId={activeMetric}
+        currentValue={metricData.currentValue}
+      />
+    </>
   )
 }
