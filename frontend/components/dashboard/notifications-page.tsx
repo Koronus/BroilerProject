@@ -36,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
 type NotificationPriority = "critical" | "high" | "medium" | "low"
-type NotificationStatus = "new" | "viewed" | "incident" | "closed"
+type NotificationStatus = "new" | "viewed" | "snoozed" | "incident" | "closed"
 type NotificationSource = "sensor" | "system" | "employee" | "analytics"
 type DateFilter = "all" | "24h" | "today" | "7d" | "month"
 
@@ -151,6 +151,10 @@ const statusConfig: Record<NotificationStatus, { label: string; className: strin
     label: "Просмотрено",
     className: "border-zinc-300 bg-zinc-100 text-zinc-700",
   },
+  snoozed: {
+    label: "Отложено",
+    className: "border-violet-200 bg-violet-50 text-violet-700",
+  },
   incident: {
     label: "Передано в инцидент",
     className: "border-amber-200 bg-amber-50 text-amber-700",
@@ -165,7 +169,7 @@ const backendStatusMap: Record<string, NotificationStatus> = {
   NEW: "new",
   VIEWED: "viewed",
   ACKNOWLEDGED: "viewed",
-  SNOOZED: "viewed",
+  SNOOZED: "snoozed",
   INCIDENT_CREATED: "incident",
   RESOLVED: "closed",
   CLOSED: "closed",
@@ -222,6 +226,7 @@ const statusFilterOptions: SelectOption[] = [
   { value: "all", label: "Все статусы" },
   { value: "new", label: statusConfig.new.label },
   { value: "viewed", label: statusConfig.viewed.label },
+  { value: "snoozed", label: statusConfig.snoozed.label },
   { value: "incident", label: statusConfig.incident.label },
   { value: "closed", label: statusConfig.closed.label },
 ]
@@ -248,6 +253,17 @@ const incidentPriorityMap: Record<NotificationPriority, string> = {
   medium: "MEDIUM",
   low: "LOW",
 }
+
+const responsibleOptions = [
+  "Главный ветеринарный врач",
+  "Главный зоотехник",
+  "Главный инженер",
+  "Директор по качеству",
+  "Системный администратор",
+  "Руководитель комплекса",
+  "Служба безопасности",
+  "Оператор цеха (птичница)",
+]
 
 const sourceIcons: Record<NotificationSource, LucideIcon> = {
   sensor: RadioTower,
@@ -319,6 +335,7 @@ const notificationNeedsIncident = (notification: FarmNotification) =>
   notification.requiresIncident ||
   (notification.status !== "incident" &&
     notification.status !== "closed" &&
+    notification.status !== "snoozed" &&
     (notification.priority === "critical" || notification.priority === "high"))
 
 const toFarmNotification = (notification: BackendNotification): FarmNotification => {
@@ -558,11 +575,21 @@ function FieldSelect({
 function NotificationActions({
   onOpen,
   onCreateIncident,
+  onAssign,
+  onSnooze,
+  onMarkAsRead,
   canCreateIncident = true,
+  canSnooze = true,
+  canMarkAsRead = true,
 }: {
   onOpen: () => void
   onCreateIncident: () => void
+  onAssign: () => void
+  onSnooze: () => void
+  onMarkAsRead: () => void
   canCreateIncident?: boolean
+  canSnooze?: boolean
+  canMarkAsRead?: boolean
 }) {
   const actionClass =
     "h-8 border-zinc-300 bg-white px-2.5 text-xs text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
@@ -598,7 +625,10 @@ function NotificationActions({
         variant="outline"
         size="sm"
         className={actionClass}
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation()
+          onAssign()
+        }}
       >
         <UserPlus className="size-3.5" />
         Назначить
@@ -607,7 +637,11 @@ function NotificationActions({
         variant="outline"
         size="sm"
         className={actionClass}
-        onClick={(event) => event.stopPropagation()}
+        disabled={!canSnooze}
+        onClick={(event) => {
+          event.stopPropagation()
+          onSnooze()
+        }}
       >
         <PauseCircle className="size-3.5" />
         Отложить
@@ -616,7 +650,11 @@ function NotificationActions({
         variant="outline"
         size="sm"
         className={actionClass}
-        onClick={(event) => event.stopPropagation()}
+        disabled={!canMarkAsRead}
+        onClick={(event) => {
+          event.stopPropagation()
+          onMarkAsRead()
+        }}
       >
         <CheckCircle2 className="size-3.5" />
         Прочитано
@@ -629,10 +667,12 @@ function NotificationDetails({
   notification,
   variant = "panel",
   onCreateIncident,
+  onAssign,
 }: {
   notification: FarmNotification
   variant?: "panel" | "dialog"
   onCreateIncident?: (notification: FarmNotification) => void
+  onAssign?: (notification: FarmNotification) => void
 }) {
   const SourceIcon = sourceIcons[notification.source]
   const canCreateIncident = notification.status !== "incident"
@@ -773,6 +813,7 @@ function NotificationDetails({
         <Button
           variant="outline"
           className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+          onClick={() => onAssign?.(notification)}
         >
           <UserPlus className="size-4" />
           Назначить ответственного
@@ -795,6 +836,8 @@ export function NotificationsPage() {
   const [activeNotificationId, setActiveNotificationId] = useState(fallbackNotifications[0].id)
   const [detailsNotificationId, setDetailsNotificationId] = useState<string | null>(null)
   const [incidentNotificationId, setIncidentNotificationId] = useState<string | null>(null)
+  const [assignNotificationId, setAssignNotificationId] = useState<string | null>(null)
+  const [selectedResponsible, setSelectedResponsible] = useState(responsibleOptions[0])
   const [incidentForm, setIncidentForm] = useState<IncidentFormState>(emptyIncidentForm)
   const [isCreatingIncident, setIsCreatingIncident] = useState(false)
   const [incidentError, setIncidentError] = useState<string | null>(null)
@@ -845,7 +888,12 @@ export function NotificationsPage() {
   }, [])
 
   const typeFilterOptions = useMemo(
-    () => buildTextFilterOptions(notifications.map((notification) => notification.type), "Все типы", false),
+    () =>
+      buildTextFilterOptions(
+        notifications.map((notification) => notification.type),
+        "Все типы",
+        false,
+      ),
     [notifications],
   )
   const farmFilterOptions = useMemo(
@@ -869,6 +917,7 @@ export function NotificationsPage() {
     startOfToday.setHours(0, 0, 0, 0)
 
     return notifications.filter((notification) => {
+      const isSnoozed = notification.status === "snoozed"
       const notificationTimestamp = getNotificationTimestamp(notification)
       const matchesPeriod =
         filters.period === "all" ||
@@ -899,11 +948,16 @@ export function NotificationsPage() {
           .join(" ")
           .toLowerCase()
           .includes(query)
+      const matchesType =
+        filters.type === "all" || notification.type === filters.type
+      const matchesSnoozedVisibility =
+        filters.status === "snoozed" ? isSnoozed : !isSnoozed
 
       return (
         matchesSearch &&
         matchesPeriod &&
-        (filters.type === "all" || notification.type === filters.type) &&
+        matchesType &&
+        matchesSnoozedVisibility &&
         (filters.farm === "all" || notification.farm === filters.farm) &&
         (filters.building === "all" || notification.building === filters.building) &&
         (filters.priority === "all" || notification.priority === filters.priority) &&
@@ -923,6 +977,9 @@ export function NotificationsPage() {
 
   const incidentNotification =
     notifications.find((notification) => notification.id === incidentNotificationId) ?? null
+
+  const assignNotification =
+    notifications.find((notification) => notification.id === assignNotificationId) ?? null
 
   const hasActiveFilters =
     Boolean(searchQuery.trim()) ||
@@ -951,12 +1008,19 @@ export function NotificationsPage() {
     )
   }
 
-  const markNotificationAsViewed = async (notification: FarmNotification) => {
-    if (notification.status !== "new") {
+  const updateNotificationStatus = async (
+    notification: FarmNotification,
+    status: NotificationStatus,
+    backendStatus: string,
+    errorMessage: string,
+  ) => {
+    if (notification.status === status) {
       return
     }
 
-    setNotificationStatus(notification.id, "viewed")
+    const previousStatus = notification.status
+
+    setNotificationStatus(notification.id, status)
 
     try {
       const response = await fetch(`/api/notifications/${notification.id}/status`, {
@@ -964,7 +1028,7 @@ export function NotificationsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify("VIEWED"),
+        body: JSON.stringify(backendStatus),
       })
 
       if (!response.ok) {
@@ -975,15 +1039,40 @@ export function NotificationsPage() {
 
       setLoadError(null)
     } catch {
-      setNotificationStatus(notification.id, "new")
-      setLoadError("Не удалось отметить уведомление как просмотренное")
+      setNotificationStatus(notification.id, previousStatus)
+      setLoadError(errorMessage)
     }
+  }
+
+  const markNotificationAsViewed = (notification: FarmNotification) => {
+    if (notification.status !== "new") {
+      return
+    }
+
+    void updateNotificationStatus(
+      notification,
+      "viewed",
+      "VIEWED",
+      "Не удалось отметить уведомление как просмотренное",
+    )
+  }
+
+  const snoozeNotification = (notification: FarmNotification) => {
+    if (notification.status === "snoozed" || notification.status === "incident" || notification.status === "closed") {
+      return
+    }
+
+    void updateNotificationStatus(
+      notification,
+      "snoozed",
+      "SNOOZED",
+      "Не удалось отложить уведомление",
+    )
   }
 
   const openNotificationDetails = (notification: FarmNotification) => {
     setActiveNotificationId(notification.id)
     setDetailsNotificationId(notification.id)
-    void markNotificationAsViewed(notification)
   }
 
   const openCreateIncidentDialog = (notification: FarmNotification) => {
@@ -998,6 +1087,48 @@ export function NotificationsPage() {
       responsible: "",
       decisionComment: "",
     })
+  }
+
+  const openAssignDialog = (notification: FarmNotification) => {
+    setActiveNotificationId(notification.id)
+    setDetailsNotificationId(null)
+    setIncidentNotificationId(null)
+    setAssignNotificationId(notification.id)
+    setSelectedResponsible(
+      responsibleOptions.includes(notification.responsible)
+        ? notification.responsible
+        : responsibleOptions[0],
+    )
+  }
+
+  const closeAssignDialog = () => {
+    setAssignNotificationId(null)
+    setSelectedResponsible(responsibleOptions[0])
+  }
+
+  const assignResponsible = () => {
+    if (!assignNotification) {
+      return
+    }
+
+    setNotifications((currentNotifications) =>
+      currentNotifications.map((notification) => {
+        if (notification.id !== assignNotification.id) {
+          return notification
+        }
+
+        const comment = `Назначен ответственный: ${selectedResponsible}`
+
+        return {
+          ...notification,
+          responsible: selectedResponsible,
+          comments: notification.comments.includes(comment)
+            ? notification.comments
+            : [...notification.comments, comment],
+        }
+      }),
+    )
+    closeAssignDialog()
   }
 
   const closeCreateIncidentDialog = () => {
@@ -1296,7 +1427,16 @@ export function NotificationsPage() {
                     <NotificationActions
                       onOpen={() => openNotificationDetails(notification)}
                       onCreateIncident={() => openCreateIncidentDialog(notification)}
+                      onAssign={() => openAssignDialog(notification)}
+                      onSnooze={() => snoozeNotification(notification)}
+                      onMarkAsRead={() => markNotificationAsViewed(notification)}
                       canCreateIncident={notification.status !== "incident"}
+                      canSnooze={
+                        notification.status !== "snoozed" &&
+                        notification.status !== "incident" &&
+                        notification.status !== "closed"
+                      }
+                      canMarkAsRead={notification.status === "new"}
                     />
                   </div>
                 </article>
@@ -1309,6 +1449,7 @@ export function NotificationsPage() {
               <NotificationDetails
                 notification={activeNotification}
                 onCreateIncident={openCreateIncidentDialog}
+                onAssign={openAssignDialog}
               />
             ) : (
               <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">
@@ -1323,6 +1464,7 @@ export function NotificationsPage() {
             <NotificationDetails
               notification={activeNotification}
               onCreateIncident={openCreateIncidentDialog}
+              onAssign={openAssignDialog}
             />
           ) : (
             <aside className="flex h-full items-center justify-center border-l border-zinc-200 bg-white p-5 text-sm text-zinc-500 rounded-br-[28px]">
@@ -1350,8 +1492,69 @@ export function NotificationsPage() {
               notification={detailsNotification}
               variant="dialog"
               onCreateIncident={openCreateIncidentDialog}
+              onAssign={openAssignDialog}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={assignNotification !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeAssignDialog()
+          }
+        }}
+      >
+        <DialogContent className="max-w-[min(560px,calc(100%-2rem))] p-0">
+          <div className="border-b border-zinc-200 px-6 py-5 pr-12">
+            <DialogTitle className="text-base font-semibold text-foreground">
+              Назначить ответственного
+            </DialogTitle>
+            {assignNotification && (
+              <p className="mt-2 text-sm text-zinc-500">
+                {assignNotification.title}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-5 p-6">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">
+                Ответственный
+              </span>
+              <select
+                value={selectedResponsible}
+                onChange={(event) => setSelectedResponsible(event.target.value)}
+                className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition-colors hover:bg-zinc-50 focus:border-zinc-500"
+              >
+                {responsibleOptions.map((responsible) => (
+                  <option key={responsible} value={responsible}>
+                    {responsible}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 pt-5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeAssignDialog}
+                className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+              >
+                Отмена
+              </Button>
+              <Button
+                type="button"
+                onClick={assignResponsible}
+                className="bg-zinc-950 text-white hover:bg-zinc-800"
+              >
+                <UserPlus className="size-4" />
+                Назначить
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
