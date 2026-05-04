@@ -41,14 +41,6 @@ export function ReportsModal({
       icon: FileText,
       color: "bg-red-500/10 text-red-600 dark:text-red-400",
       onClick: onPDFReport
-    },
-    {
-      id: "excel",
-      title: "Excel отчет",
-      description: "Данные для анализа в таблицах",
-      icon: FileSpreadsheet,
-      color: "bg-green-500/10 text-green-600 dark:text-green-400",
-      onClick: onExcelReport || (() => alert("Excel отчет в разработке"))
     }
   ]
 

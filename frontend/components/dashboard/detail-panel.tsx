@@ -17,6 +17,7 @@ import { metricsDetails } from "@/lib/metricks-detail"
 import { CreateTaskModal } from "./create-task-modal"
 import { ReportsModal } from "./reports-modal"
 import { type BirdAgeGroup } from "@/components/dashboard/kpi-grid"
+import { workshops, poultryHouses, batches, ageRangeOptions } from "@/lib/production-filters"
 
 interface DetailPanelProps {
   onClose: () => void
@@ -29,10 +30,16 @@ interface DetailPanelProps {
   selectedAgeRangeId?: string
 }
 
-
-
-export function DetailPanel({ onClose, 
-  activeMetric }: DetailPanelProps) {
+export function DetailPanel({ 
+  onClose, 
+  activeMetric,
+  activeCategory = "microclimate",
+  selectedAge = "21-30",
+  selectedWorkshopIds = [],
+  selectedHouseIds = [],
+  selectedBatchIds = [],
+  selectedAgeRangeId = "all"
+}: DetailPanelProps) {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false)
   const metricData = metricsDetails[activeMetric]
@@ -56,213 +63,301 @@ export function DetailPanel({ onClose,
     )
   }
 
-  // ========== ФУНКЦИОНАЛ ОТЧЕТОВ ==========
+  // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ФИЛЬТРОВ ==========
 
-  // Полный отчет (сводный по всем данным)
-  const handleFullReport = () => {
-    const printWindow = window.open('', '_blank')
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Полный отчет - ${metricData.title}</title>
-            <style>
-              body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; max-width: 1200px; margin: 0 auto; }
-              h1 { color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
-              h2 { color: #334155; margin-top: 30px; border-left: 4px solid #3b82f6; padding-left: 12px; }
-              .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
-              .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; }
-              .info-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px; }
-              .info-value { font-size: 24px; font-weight: bold; color: #1e293b; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
-              th { background-color: #f1f5f9; font-weight: 600; }
-              .status-critical { color: #dc2626; font-weight: bold; }
-              .status-warning { color: #f59e0b; font-weight: bold; }
-              .status-normal { color: #10b981; font-weight: bold; }
-              .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8; }
-            </style>
-          </head>
-          <body>
-            <h1>📊 Полный отчет: ${metricData.title}</h1>
-            <p><strong>📅 Дата генерации:</strong> ${new Date().toLocaleString('ru-RU')}</p>
-            
-            <div class="info-grid">
-              <div class="info-card">
-                <div class="info-label">Текущее значение</div>
-                <div class="info-value">${metricData.currentValue}</div>
-                <span class="status-${metricData.status}">${getStatusText(metricData.status)}</span>
-              </div>
-              <div class="info-card">
-                <div class="info-label">Целевой диапазон</div>
-                <div class="info-value">${metricData.targetRange}</div>
-              </div>
-            </div>
-            
-            <h2>📈 Динамика за 7 дней</h2>
-            <table><thead><tr><th>День</th><th>Значение</th></tr></thead>
-            <tbody>${metricData.chartData.map(item => `<tr><td>${item.day}</td><td>${item.value}</td></tr>`).join('')}</tbody>
-            <table>
-            
-            <h2>📍 Проблемные локации</h2>
-            ${metricData.problemLocations.length > 0 ? `
-            <table><thead><tr><th>Локация</th><th>Значение</th><th>Статус</th></tr></thead>
-            <tbody>${metricData.problemLocations.map(loc => `<tr><td>${loc.name}</td><td>${loc.value}</td><td class="status-${loc.status}">${loc.status === 'critical' ? 'Критично' : 'Внимание'}</td></tr>`).join('')}</tbody>
-            </table>
-            ` : '<p>Отклонений по локациям не найдено</p>'}
-            
-            ${metricData.relatedIncident ? `
-            <h2>⚠️ Связанный инцидент</h2>
-            <div style="background: #fef3c7; padding: 15px; border-radius: 12px;">
-              <strong>${metricData.relatedIncident.title}</strong>
-              <p style="margin-top: 8px;">${metricData.relatedIncident.description}</p>
-            </div>
-            ` : ''}
-            
-            <div class="footer">АгроКонтроль — Ситуационный центр</div>
-          </body>
-        </html>
-      `)
-       printWindow.document.close()
-    
-    // НЕ вызываем print() автоматически!
-    // Пользователь сам нажмет кнопку "Сохранить как PDF"
-    
-    // Фокусируемся на новом окне
-    printWindow.focus()
-    
-    // Когда пользователь закроет окно - фокусируемся на исходной странице
-    printWindow.onbeforeunload = () => {
-      window.focus()
-    }
-    }
+  const getSelectedWorkshopNames = () => {
+    if (!selectedWorkshopIds || selectedWorkshopIds.length === 0) return "Все цеха"
+    const names = workshops.filter(w => selectedWorkshopIds.includes(w.id)).map(w => w.name)
+    return names.length ? names.join(", ") : selectedWorkshopIds.join(", ")
   }
 
-  // PDF отчет (компактный)
-  const handlePDFReport = () => {
-  // Открываем окно с определенными размерами
-  const printWindow = window.open('', '_blank', 'width=1000,height=800,scrollbars=yes,resizable=yes')
-  
-  if (printWindow) {
-    printWindow.document.write(`
+  const getSelectedHouseNames = () => {
+    if (!selectedHouseIds || selectedHouseIds.length === 0) return "Все птичники"
+    const names = poultryHouses.filter(h => selectedHouseIds.includes(h.id)).map(h => h.name)
+    return names.length ? names.join(", ") : selectedHouseIds.join(", ")
+  }
+
+  const getSelectedBatchNames = () => {
+    if (!selectedBatchIds || selectedBatchIds.length === 0) return "Все партии"
+    const names = batches.filter(b => selectedBatchIds.includes(b.id)).map(b => b.label)
+    return names.length ? names.join(", ") : selectedBatchIds.join(", ")
+  }
+
+  const getAgeRangeName = () => {
+    const range = ageRangeOptions.find(opt => opt.id === selectedAgeRangeId)
+    if (range?.id === "all") return "Все возрасты"
+    return range?.label || selectedAgeRangeId
+  }
+
+  // ========== РАСЧЕТ СТАТИСТИЧЕСКИХ ПОКАЗАТЕЛЕЙ ==========
+
+  const calculateStats = () => {
+    const values = metricData.chartData.map(item => item.value)
+    const avg = values.reduce((a, b) => a + b, 0) / values.length
+    const sorted = [...values].sort((a, b) => a - b)
+    const median = sorted[Math.floor(sorted.length / 2)]
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    
+    // Стандартное отклонение
+    const variance = values.reduce((acc, val) => acc + Math.pow(val - avg, 2), 0) / values.length
+    const stdDev = Math.sqrt(variance)
+    
+    // Время в норме (процент дней, когда значение в норме)
+    const targetMin = parseFloat(metricData.targetRange.split("-")[0]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "0")
+    const targetMax = parseFloat(metricData.targetRange.split("-")[1]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "100")
+    const inNormCount = values.filter(v => v >= targetMin && v <= targetMax).length
+    const normPercent = (inNormCount / values.length) * 100
+    
+    // Количество превышений (отклонений)
+    const exceedCount = values.filter(v => v > targetMax).length
+    
+    return { avg, median, min, max, stdDev, normPercent, exceedCount, targetMin, targetMax }
+  }
+
+  const stats = calculateStats()
+
+  // Распределение по времени суток (имитация на основе имеющихся данных)
+  const getTimeDistribution = () => {
+    const days = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+    return metricData.chartData.map((item, index) => ({
+      day: item.day,
+      value: item.value,
+      timeOfDay: index < 2 ? "Ночь" : index < 4 ? "Утро" : index < 6 ? "День" : "Вечер"
+    }))
+  }
+
+  // ========== ФУНКЦИЯ ГЕНЕРАЦИИ ПОЛНОГО ОТЧЕТА ==========
+
+  const generateFullReportHTML = () => {
+    const timeDistribution = getTimeDistribution()
+    
+    return `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>PDF Отчет - ${metricData.title}</title>
+          
           <meta charset="UTF-8">
           <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
               font-family: 'Segoe UI', Arial, sans-serif; 
               padding: 40px; 
               max-width: 1200px; 
               margin: 0 auto; 
               background: white;
+              line-height: 1.5;
             }
-            h1 { color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
-            .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
-            .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; }
-            .info-value { font-size: 24px; font-weight: bold; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
-            th { background-color: #f1f5f9; }
+            h1 { color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px; }
+            h2 { color: #334155; margin-top: 30px; margin-bottom: 15px; border-left: 4px solid #3b82f6; padding-left: 12px; }
+            h3 { color: #475569; margin-top: 20px; margin-bottom: 10px; }
+            .header-info {
+              background: #f8fafc;
+              padding: 16px;
+              border-radius: 12px;
+              margin-bottom: 20px;
+              border: 1px solid #e2e8f0;
+            }
+            .executive-summary {
+              background: #f0fdf4;
+              border-left: 4px solid #10b981;
+              padding: 16px;
+              border-radius: 12px;
+              margin-bottom: 20px;
+            }
             .status-critical { color: #dc2626; }
             .status-warning { color: #f59e0b; }
             .status-normal { color: #10b981; }
-            .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8; }
-            .button-container {
+            table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+            th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+            th { background-color: #f1f5f9; font-weight: 600; }
+            .stats-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+              gap: 16px;
+              margin: 20px 0;
+            }
+            .stat-card {
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 12px;
+              padding: 16px;
+            }
+            .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px; }
+            .stat-value { font-size: 24px; font-weight: bold; color: #1e293b; }
+            .recommendation-box {
+              background: #fef3c7;
+              border-left: 4px solid #f59e0b;
+              padding: 16px;
+              border-radius: 12px;
+              margin-top: 20px;
+            }
+            .footer {
+              margin-top: 50px;
+              padding-top: 20px;
+              border-top: 1px solid #e2e8f0;
+              text-align: center;
+              font-size: 12px;
+              color: #94a3b8;
+            }
+            .print-btn {
               position: fixed;
               top: 20px;
               right: 20px;
-              z-index: 1000;
-            }
-            .btn-close {
               padding: 8px 16px;
+              background: #3b82f6;
+              color: white;
               border: none;
               border-radius: 8px;
               cursor: pointer;
-              font-size: 14px;
-              font-weight: 500;
-              background: #ef4444;
-              color: white;
-              transition: all 0.2s;
             }
-            .btn-close:hover { background: #dc2626; }
             @media print {
-              .button-container { display: none; }
-              body { padding: 20px; }
+              .print-btn { display: none; }
             }
           </style>
         </head>
         <body>
-          <div class="button-container">
-            <button class="btn-close" onclick="window.close()">✖ Закрыть</button>
+          <button class="print-btn" onclick="window.print()">📄 Сохранить как PDF</button>
+          
+          <h1 style="text-align: center;">ОТЧЁТ</h1>
+          <p><strong>По показателю:</strong> ${metricData.title}</p>
+          
+          <div class="header-info">
+            <p><strong>Объект:</strong> ${getSelectedWorkshopNames()}</p>
+            <p><strong>Птичники:</strong> ${getSelectedHouseNames()}</p>
+            <p><strong>Партии:</strong> ${getSelectedBatchNames()}</p>
+            <p><strong>Период:</strong> ${metricData.chartData[0]?.day} - ${metricData.chartData[metricData.chartData.length-1]?.day} (7 дней)</p>
+            <p><strong>Дата генерации отчета:</strong> ${new Date().toLocaleString('ru-RU')}</p>
+            <p><strong>Возраст птицы:</strong> ${selectedAge === "0-3" ? "0-3 дня" : "21-30 дней"}</p>
           </div>
           
-          <h1>📄 PDF Отчет: ${metricData.title}</h1>
-          <p><strong>📅 Дата генерации:</strong> ${new Date().toLocaleString('ru-RU')}</p>
           
-          <div class="info-grid">
-            <div class="info-card">
-              <div class="info-value status-${metricData.status}">${metricData.currentValue}</div>
-              <div style="color: #64748b; margin-top: 5px;">Текущее значение</div>
+          
+          <!-- 2. Статистические показатели -->
+          <h2>📊 Статистические показатели</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Среднее значение</div>
+              <div class="stat-value ${metricData.status === "critical" ? 'status-critical' : metricData.status === "warning" ? 'status-warning' : 'status-normal'}">
+                ${stats.avg.toFixed(2)}${formatUnit()}
+              </div>
+              <div>Норма: ${metricData.targetRange}</div>
             </div>
-            <div class="info-card">
-              <div class="info-value">${metricData.targetRange}</div>
-              <div style="color: #64748b; margin-top: 5px;">Целевой диапазон</div>
+            <div class="stat-card">
+              <div class="stat-label">Медиана</div>
+              <div class="stat-value">${stats.median.toFixed(2)}${formatUnit()}</div>
             </div>
+            <div class="stat-card">
+              <div class="stat-label">Минимальное значение</div>
+              <div class="stat-value">${stats.min.toFixed(2)}${formatUnit()}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Максимальное значение</div>
+              <div class="stat-value ${stats.max > stats.targetMax ? 'status-critical' : ''}">
+                ${stats.max.toFixed(2)}${formatUnit()}
+              </div>
+            </div>
+            
+            
           </div>
           
-          <h2>📈 Динамика за 7 дней</h2>
+          <!-- 3. Распределение по дням -->
+          <h2>📈 Динамика за период</h2>
           <table>
-            <thead>
-              <tr><th>День</th><th>Значение</th></tr>
-            </thead>
+            <thead><tr><th>День</th><th>Значение</th><th>Норма</th><th>Статус</th></tr></thead>
             <tbody>
-              ${metricData.chartData.map(item => `<tr><td>${item.day}</td><td>${item.value}</td>`).join('')}
+              ${metricData.chartData.map(item => `
+                <tr>
+                  <td>${item.day}</td>
+                  <td>${item.value}${formatUnit()}</td>
+                  <td>${metricData.targetRange}</td>
+                  <td class="${item.value > stats.targetMax ? 'status-critical' : 'status-normal'}">
+                    ${item.value > stats.targetMax ? '⚠ Превышение' : (item.value < stats.targetMin ? '⚠ Понижение' : '✓ Норма')}
+                  </td>
+                </tr>
+              `).join('')}
             </tbody>
           </table>
           
+          <!-- 4. Проблемные локации -->
+          <h2>📍Проблемные локации</h2>
+          ${metricData.problemLocations.length > 0 ? `
+            <table>
+              <thead><tr><th>Локация</th><th>Значение</th><th>Статус</th></tr></thead>
+              <tbody>
+                ${metricData.problemLocations.map(loc => `
+                  <tr>
+                    <td>${loc.name}</td>
+                    <td>${loc.value}</td>
+                    <td class="${loc.status === 'critical' ? 'status-critical' : 'status-warning'}">
+                      ${loc.status === 'critical' ? '⚠ Критично' : '⚠ Требует внимания'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p>Отклонений по локациям не найдено</p>'}
+          
+          <!-- 5. Связанный инцидент -->
+          ${metricData.relatedIncident ? `
+            <h2>⚠️ Связанные инциденты</h2>
+            <div style="background: #fef3c7; padding: 16px; border-radius: 12px;">
+              <strong>${metricData.relatedIncident.title}</strong>
+              <p style="margin-top: 8px;">${metricData.relatedIncident.description}</p>
+            </div>
+          ` : ''}
+          
+         
+          
           <div class="footer">
-            АгроКонтроль — Ситуационный центр<br>
-            Отчет сгенерирован автоматически ${new Date().toLocaleString('ru-RU')}
+            <p>Сформировано автоматически</p>
+            <p>Источник данных: ${metricData.chartData.length} измерений</p>
+            <p>АгроКонтроль — Ситуационный центр</p>
           </div>
         </body>
       </html>
-    `)
-    
-    printWindow.document.close()
-    
-    // Фокусируемся на новом окне
-    printWindow.focus()
-    
-    // Когда пользователь закроет окно - фокусируемся на исходной странице
-    printWindow.onbeforeunload = () => {
-      window.focus()
+    `
+  }
+
+  const formatUnit = () => {
+    if (metricData.title.includes("Температура")) return "°C"
+    if (metricData.title.includes("Аммиак")) return " ppm"
+    if (metricData.title.includes("Вес")) return metricData.currentValue.includes("кг") ? " кг" : " г"
+    if (metricData.title.includes("%")) return "%"
+    return ""
+  }
+
+  // ========== ОБНОВЛЕННЫЙ ПОЛНЫЙ ОТЧЕТ ==========
+  const handleFullReport = () => {
+    const printWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes')
+    if (printWindow) {
+      printWindow.document.write(generateFullReportHTML())
+      printWindow.document.close()
+      printWindow.focus()
+      printWindow.onbeforeunload = () => { window.focus() }
     }
+  }
+
+  // PDF отчет (компактный)
+  const handlePDFReport = () => {
+  const pdfWindow = window.open('', '_blank', 'width=800,height=600')
+  if (pdfWindow) {
+    pdfWindow.document.write(generateFullReportHTML())
+    pdfWindow.document.close()
+    
+    // Автоматически вызвать печать/сохранение
+    pdfWindow.print()
+    pdfWindow.close()
+    // Не закрываем окно сразу, но основная страница активна
+    // pdfWindow.onafterprint = () => {
+    //   pdfWindow.close()
+    //   window.focus() // Возвращаем фокус на основную страницу
+    // }
   }
 }
 
   // Excel отчет (CSV экспорт)
-  const handleExcelReport = () => {
-    const headers = ["Показатель", "Значение", "Норма", "Статус"]
-    const rows = [
-      [metricData.title, metricData.currentValue, metricData.targetRange, getStatusText(metricData.status)],
-      ...metricData.chartData.map(item => [`Динамика ${item.day}`, item.value, "", ""]),
-      ...metricData.problemLocations.map(loc => [`Проблема: ${loc.name}`, loc.value, "", loc.status])
-    ]
-    const csvContent = [headers, ...rows].map(row => row.join(",")).join("\n")
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${metricData.title}_${new Date().toISOString().split("T")[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  
-
- 
+ // ========== Excel отчет (CSV экспорт) с фильтрами и статистикой ==========
 
   // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
@@ -323,6 +418,7 @@ export function DetailPanel({ onClose,
   return (
     <>
       <aside className="dashboard-panel p-5 md:p-6">
+        {/* ... остальной JSX (без изменений) ... */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
@@ -467,18 +563,14 @@ export function DetailPanel({ onClose,
         </div>
       </aside>
 
-      {/* Модальное окно отчетов */}
       <ReportsModal
         isOpen={isReportsModalOpen}
         onClose={() => setIsReportsModalOpen(false)}
         onFullReport={handleFullReport}
         onPDFReport={handlePDFReport}
-        onExcelReport={handleExcelReport}
         
-      
       />
 
-      {/* Модальное окно создания задачи */}
       <CreateTaskModal
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
