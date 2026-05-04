@@ -83,10 +83,11 @@ export function CategorySidebar({
           </span>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+        {/* ИСПРАВЛЕННЫЕ КАРТОЧКИ - ВСЕГДА В ОДНУ СТРОКУ */}
+        <div className="mt-5 grid grid-cols-2 gap-3">
           <div className="min-w-0 rounded-2xl border border-black/5 bg-white/70 p-4 dark:border-white/8 dark:bg-white/4">
-            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <CircleAlert className="size-4 text-amber-500" />
+            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+              <CircleAlert className="size-4 text-amber-500 shrink-0" />
               Внимание
             </div>
             <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
@@ -94,8 +95,8 @@ export function CategorySidebar({
             </div>
           </div>
           <div className="min-w-0 rounded-2xl border border-black/5 bg-white/70 p-4 dark:border-white/8 dark:bg-white/4">
-            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <ShieldCheck className="size-4 text-red-500" />
+            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+              <ShieldCheck className="size-4 text-red-500 shrink-0" />
               Критично
             </div>
             <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
@@ -105,8 +106,9 @@ export function CategorySidebar({
         </div>
       </div>
 
+      {/* НАВИГАЦИЯ - ВЕРТИКАЛЬНЫЙ СПИСОК */}
       <nav className="dashboard-panel p-3">
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           {categories.map((category) => {
             const status = getCategoryStatus(category.id)
             const config = statusConfig[status]
@@ -117,27 +119,27 @@ export function CategorySidebar({
                 key={category.id}
                 onClick={() => onCategoryChange(category.id)}
                 className={cn(
-                  "w-full min-w-0 rounded-[22px] border p-4 text-left transition-all",
+                  "w-full rounded-[22px] border p-4 text-left transition-all",
                   isActive
                     ? "!border-zinc-900 !bg-zinc-950 !text-white hover:!border-zinc-900 hover:!bg-zinc-950 hover:!text-white dark:!border-white dark:!bg-white dark:!text-zinc-950 dark:hover:!border-white dark:hover:!bg-white dark:hover:!text-zinc-950 shadow-[0_16px_36px_-24px_rgba(15,23,42,0.8)]"
                     : "border-black/5 bg-white/70 hover:border-black/10 hover:bg-white dark:border-white/8 dark:bg-white/4 dark:hover:bg-white/8"
                 )}
               >
-                <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className={cn("size-2.5 rounded-full", config.dot)} />
+                      <span className={cn("size-2.5 rounded-full shrink-0", config.dot)} />
                       <span
                         className={cn(
-                          "max-w-full rounded-full px-2 py-1 text-[11px] font-medium",
+                          "rounded-full px-2 py-1 text-[11px] font-medium whitespace-nowrap",
                           isActive ? "bg-white/14 text-white/85 dark:bg-zinc-900/10 dark:text-zinc-700" : config.badge
                         )}
                       >
                         {config.label}
                       </span>
                     </div>
-                    <div className="mt-3 break-words text-sm font-medium leading-5">
-                      {category.name}
+                    <div className="mt-3 text-sm font-medium leading-5">
+                      <span className="whitespace-normal break-words">{category.name}</span>
                     </div>
                   </div>
                   <ArrowUpRight

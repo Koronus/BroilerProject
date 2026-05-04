@@ -91,7 +91,8 @@ export function ProductionFilters({
           title="Цех"
           description="Множественный выбор цехов предприятия с указанием производственного направления."
         >
-          <div className="flex flex-wrap gap-2">
+          {/* ЦЕХИ - ВЕРТИКАЛЬНЫЙ СПИСОК */}
+          <div className="flex flex-col gap-2">
             {workshops.map((workshop) => {
               const isActive = selectedWorkshopIds.includes(workshop.id)
 
@@ -100,14 +101,14 @@ export function ProductionFilters({
                   key={workshop.id}
                   onClick={() => onWorkshopToggle(workshop.id)}
                   className={cn(
-                    "rounded-full border px-3 py-2 text-sm transition",
+                    "w-full rounded-full border px-4 py-2 text-sm transition flex items-center justify-between",
                     isActive
                       ? "border-zinc-900 bg-zinc-950 text-white dark:border-white dark:bg-white dark:text-zinc-950"
                       : "border-black/8 bg-white text-zinc-700 hover:border-black/15 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10"
                   )}
                 >
-                  <span className="font-medium">{workshop.name}</span>
-                  <span className={cn("ml-2 text-xs", isActive ? "text-white/70 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400")}>
+                  <span className="font-medium truncate">{workshop.name}</span>
+                  <span className={cn("ml-2 text-xs shrink-0", isActive ? "text-white/70 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400")}>
                     {workshop.direction}
                   </span>
                 </button>
@@ -121,7 +122,7 @@ export function ProductionFilters({
           title="Птичник"
           description="Список автоматически ограничивается выбранными цехами. Для каждого птичника виден текущий статус."
         >
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {availableHouses.map((house) => {
               const meta = poultryHouseStatusMeta[house.status]
               const isActive = selectedHouseIds.includes(house.id)
@@ -163,13 +164,14 @@ export function ProductionFilters({
           title="Партия и возраст"
           description="Партии можно выбирать по идентификатору, а возрастной диапазон использовать как альтернативный режим отбора."
         >
-          <div className="flex flex-wrap gap-2">
+          {/* ВОЗРАСТНЫЕ ДИАПАЗОНЫ - ВЕРТИКАЛЬНЫЙ СПИСОК */}
+          <div className="flex flex-col gap-2">
             {ageRangeOptions.map((option) => (
               <button
                 key={option.id}
                 onClick={() => onAgeRangeChange(option.id)}
                 className={cn(
-                  "rounded-full border px-3 py-2 text-sm transition",
+                  "w-full rounded-full border px-4 py-2 text-sm transition text-left",
                   selectedAgeRangeId === option.id
                     ? "border-zinc-900 bg-zinc-950 text-white dark:border-white dark:bg-white dark:text-zinc-950"
                     : "border-black/8 bg-white text-zinc-700 hover:border-black/15 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10"
@@ -184,7 +186,7 @@ export function ProductionFilters({
             Возрастной диапазон и конкретные партии лучше использовать по отдельности, чтобы срез был однозначным.
           </div>
 
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 space-y-2 max-h-[250px] overflow-y-auto">
             {availableBatches.map((batch: Batch) => {
               const isActive = selectedBatchIds.includes(batch.id)
 
@@ -199,7 +201,7 @@ export function ProductionFilters({
                       : "border-black/8 bg-white hover:border-black/15 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                   )}
                 >
-                  <div className="text-sm font-medium">{batch.label}</div>
+                  <div className="text-sm font-medium truncate">{batch.label}</div>
                   <div className={cn("mt-1 text-xs", isActive ? "text-white/70 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400")}>
                     Возраст: {batch.ageLabel}
                   </div>
