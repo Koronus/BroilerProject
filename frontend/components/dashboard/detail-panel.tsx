@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { AlertTriangle, ClipboardPlus, FileText, X } from "lucide-react"
 import {
   Area,
@@ -13,13 +14,34 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { metricsDetails } from "@/lib/metricks-detail"
+import { CreateTaskModal } from "./create-task-modal"
+import { ReportsModal } from "./reports-modal"
+import { type BirdAgeGroup } from "@/components/dashboard/kpi-grid"
+import { workshops, poultryHouses, batches, ageRangeOptions } from "@/lib/production-filters"
 
 interface DetailPanelProps {
   onClose: () => void
   activeMetric: string
+  activeCategory?: string
+  selectedAge?: BirdAgeGroup
+  selectedWorkshopIds?: string[]
+  selectedHouseIds?: string[]
+  selectedBatchIds?: string[]
+  selectedAgeRangeId?: string
 }
 
-export function DetailPanel({ onClose, activeMetric }: DetailPanelProps) {
+export function DetailPanel({ 
+  onClose, 
+  activeMetric,
+  activeCategory = "microclimate",
+  selectedAge = "21-30",
+  selectedWorkshopIds = [],
+  selectedHouseIds = [],
+  selectedBatchIds = [],
+  selectedAgeRangeId = "all"
+}: DetailPanelProps) {
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState(false)
   const metricData = metricsDetails[activeMetric]
 
   if (!metricData) {
@@ -40,6 +62,304 @@ export function DetailPanel({ onClose, activeMetric }: DetailPanelProps) {
       </aside>
     )
   }
+
+  // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ФИЛЬТРОВ ==========
+
+  const getSelectedWorkshopNames = () => {
+    if (!selectedWorkshopIds || selectedWorkshopIds.length === 0) return "Все цеха"
+    const names = workshops.filter(w => selectedWorkshopIds.includes(w.id)).map(w => w.name)
+    return names.length ? names.join(", ") : selectedWorkshopIds.join(", ")
+  }
+
+  const getSelectedHouseNames = () => {
+    if (!selectedHouseIds || selectedHouseIds.length === 0) return "Все птичники"
+    const names = poultryHouses.filter(h => selectedHouseIds.includes(h.id)).map(h => h.name)
+    return names.length ? names.join(", ") : selectedHouseIds.join(", ")
+  }
+
+  const getSelectedBatchNames = () => {
+    if (!selectedBatchIds || selectedBatchIds.length === 0) return "Все партии"
+    const names = batches.filter(b => selectedBatchIds.includes(b.id)).map(b => b.label)
+    return names.length ? names.join(", ") : selectedBatchIds.join(", ")
+  }
+
+  const getAgeRangeName = () => {
+    const range = ageRangeOptions.find(opt => opt.id === selectedAgeRangeId)
+    if (range?.id === "all") return "Все возрасты"
+    return range?.label || selectedAgeRangeId
+  }
+
+  // ========== РАСЧЕТ СТАТИСТИЧЕСКИХ ПОКАЗАТЕЛЕЙ ==========
+
+  const calculateStats = () => {
+    const values = metricData.chartData.map(item => item.value)
+    const avg = values.reduce((a, b) => a + b, 0) / values.length
+    const sorted = [...values].sort((a, b) => a - b)
+    const median = sorted[Math.floor(sorted.length / 2)]
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    
+    // Стандартное отклонение
+    const variance = values.reduce((acc, val) => acc + Math.pow(val - avg, 2), 0) / values.length
+    const stdDev = Math.sqrt(variance)
+    
+    // Время в норме (процент дней, когда значение в норме)
+    const targetMin = parseFloat(metricData.targetRange.split("-")[0]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "0")
+    const targetMax = parseFloat(metricData.targetRange.split("-")[1]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "100")
+    const inNormCount = values.filter(v => v >= targetMin && v <= targetMax).length
+    const normPercent = (inNormCount / values.length) * 100
+    
+    // Количество превышений (отклонений)
+    const exceedCount = values.filter(v => v > targetMax).length
+    
+    return { avg, median, min, max, stdDev, normPercent, exceedCount, targetMin, targetMax }
+  }
+
+  const stats = calculateStats()
+
+  // Распределение по времени суток (имитация на основе имеющихся данных)
+  const getTimeDistribution = () => {
+    const days = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+    return metricData.chartData.map((item, index) => ({
+      day: item.day,
+      value: item.value,
+      timeOfDay: index < 2 ? "Ночь" : index < 4 ? "Утро" : index < 6 ? "День" : "Вечер"
+    }))
+  }
+
+  // ========== ФУНКЦИЯ ГЕНЕРАЦИИ ПОЛНОГО ОТЧЕТА ==========
+
+  const generateFullReportHTML = () => {
+    const timeDistribution = getTimeDistribution()
+    
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          
+          <meta charset="UTF-8">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: 'Segoe UI', Arial, sans-serif; 
+              padding: 40px; 
+              max-width: 1200px; 
+              margin: 0 auto; 
+              background: white;
+              line-height: 1.5;
+            }
+            h1 { color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px; }
+            h2 { color: #334155; margin-top: 30px; margin-bottom: 15px; border-left: 4px solid #3b82f6; padding-left: 12px; }
+            h3 { color: #475569; margin-top: 20px; margin-bottom: 10px; }
+            .header-info {
+              background: #f8fafc;
+              padding: 16px;
+              border-radius: 12px;
+              margin-bottom: 20px;
+              border: 1px solid #e2e8f0;
+            }
+            .executive-summary {
+              background: #f0fdf4;
+              border-left: 4px solid #10b981;
+              padding: 16px;
+              border-radius: 12px;
+              margin-bottom: 20px;
+            }
+            .status-critical { color: #dc2626; }
+            .status-warning { color: #f59e0b; }
+            .status-normal { color: #10b981; }
+            table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+            th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+            th { background-color: #f1f5f9; font-weight: 600; }
+            .stats-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+              gap: 16px;
+              margin: 20px 0;
+            }
+            .stat-card {
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 12px;
+              padding: 16px;
+            }
+            .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px; }
+            .stat-value { font-size: 24px; font-weight: bold; color: #1e293b; }
+            .recommendation-box {
+              background: #fef3c7;
+              border-left: 4px solid #f59e0b;
+              padding: 16px;
+              border-radius: 12px;
+              margin-top: 20px;
+            }
+            .footer {
+              margin-top: 50px;
+              padding-top: 20px;
+              border-top: 1px solid #e2e8f0;
+              text-align: center;
+              font-size: 12px;
+              color: #94a3b8;
+            }
+            .print-btn {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              padding: 8px 16px;
+              background: #3b82f6;
+              color: white;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+            }
+            @media print {
+              .print-btn { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <button class="print-btn" onclick="window.print()">📄 Сохранить как PDF</button>
+          
+          <h1 style="text-align: center;">ОТЧЁТ</h1>
+          <p><strong>По показателю:</strong> ${metricData.title}</p>
+          
+          <div class="header-info">
+            <p><strong>Объект:</strong> ${getSelectedWorkshopNames()}</p>
+            <p><strong>Птичники:</strong> ${getSelectedHouseNames()}</p>
+            <p><strong>Партии:</strong> ${getSelectedBatchNames()}</p>
+            <p><strong>Период:</strong> ${metricData.chartData[0]?.day} - ${metricData.chartData[metricData.chartData.length-1]?.day} (7 дней)</p>
+            <p><strong>Дата генерации отчета:</strong> ${new Date().toLocaleString('ru-RU')}</p>
+            <p><strong>Возраст птицы:</strong> ${selectedAge === "0-3" ? "0-3 дня" : "21-30 дней"}</p>
+          </div>
+          
+          
+          
+          <!-- 2. Статистические показатели -->
+          <h2>📊 Статистические показатели</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Среднее значение</div>
+              <div class="stat-value ${metricData.status === "critical" ? 'status-critical' : metricData.status === "warning" ? 'status-warning' : 'status-normal'}">
+                ${stats.avg.toFixed(2)}${formatUnit()}
+              </div>
+              <div>Норма: ${metricData.targetRange}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Медиана</div>
+              <div class="stat-value">${stats.median.toFixed(2)}${formatUnit()}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Минимальное значение</div>
+              <div class="stat-value">${stats.min.toFixed(2)}${formatUnit()}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Максимальное значение</div>
+              <div class="stat-value ${stats.max > stats.targetMax ? 'status-critical' : ''}">
+                ${stats.max.toFixed(2)}${formatUnit()}
+              </div>
+            </div>
+            
+            
+          </div>
+          
+          <!-- 3. Распределение по дням -->
+          <h2>📈 Динамика за период</h2>
+          <table>
+            <thead><tr><th>День</th><th>Значение</th><th>Норма</th><th>Статус</th></tr></thead>
+            <tbody>
+              ${metricData.chartData.map(item => `
+                <tr>
+                  <td>${item.day}</td>
+                  <td>${item.value}${formatUnit()}</td>
+                  <td>${metricData.targetRange}</td>
+                  <td class="${item.value > stats.targetMax ? 'status-critical' : 'status-normal'}">
+                    ${item.value > stats.targetMax ? '⚠ Превышение' : (item.value < stats.targetMin ? '⚠ Понижение' : '✓ Норма')}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <!-- 4. Проблемные локации -->
+          <h2>📍Проблемные локации</h2>
+          ${metricData.problemLocations.length > 0 ? `
+            <table>
+              <thead><tr><th>Локация</th><th>Значение</th><th>Статус</th></tr></thead>
+              <tbody>
+                ${metricData.problemLocations.map(loc => `
+                  <tr>
+                    <td>${loc.name}</td>
+                    <td>${loc.value}</td>
+                    <td class="${loc.status === 'critical' ? 'status-critical' : 'status-warning'}">
+                      ${loc.status === 'critical' ? '⚠ Критично' : '⚠ Требует внимания'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p>Отклонений по локациям не найдено</p>'}
+          
+          <!-- 5. Связанный инцидент -->
+          ${metricData.relatedIncident ? `
+            <h2>⚠️ Связанные инциденты</h2>
+            <div style="background: #fef3c7; padding: 16px; border-radius: 12px;">
+              <strong>${metricData.relatedIncident.title}</strong>
+              <p style="margin-top: 8px;">${metricData.relatedIncident.description}</p>
+            </div>
+          ` : ''}
+          
+         
+          
+          <div class="footer">
+            <p>Сформировано автоматически</p>
+            <p>Источник данных: ${metricData.chartData.length} измерений</p>
+            <p>АгроКонтроль — Ситуационный центр</p>
+          </div>
+        </body>
+      </html>
+    `
+  }
+
+  const formatUnit = () => {
+    if (metricData.title.includes("Температура")) return "°C"
+    if (metricData.title.includes("Аммиак")) return " ppm"
+    if (metricData.title.includes("Вес")) return metricData.currentValue.includes("кг") ? " кг" : " г"
+    if (metricData.title.includes("%")) return "%"
+    return ""
+  }
+
+  // ========== ОБНОВЛЕННЫЙ ПОЛНЫЙ ОТЧЕТ ==========
+  const handleFullReport = () => {
+    const printWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes')
+    if (printWindow) {
+      printWindow.document.write(generateFullReportHTML())
+      printWindow.document.close()
+      printWindow.focus()
+      printWindow.onbeforeunload = () => { window.focus() }
+    }
+  }
+
+  // PDF отчет (компактный)
+  const handlePDFReport = () => {
+  const pdfWindow = window.open('', '_blank', 'width=800,height=600')
+  if (pdfWindow) {
+    pdfWindow.document.write(generateFullReportHTML())
+    pdfWindow.document.close()
+    
+    // Автоматически вызвать печать/сохранение
+    pdfWindow.print()
+    pdfWindow.close()
+    // Не закрываем окно сразу, но основная страница активна
+    // pdfWindow.onafterprint = () => {
+    //   pdfWindow.close()
+    //   window.focus() // Возвращаем фокус на основную страницу
+    // }
+  }
+}
+
+  // Excel отчет (CSV экспорт)
+ // ========== Excel отчет (CSV экспорт) с фильтрами и статистикой ==========
+
+  // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -96,144 +416,168 @@ export function DetailPanel({ onClose, activeMetric }: DetailPanelProps) {
   }
 
   return (
-    <aside className="dashboard-panel p-5 md:p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
-            Детализация
-          </p>
-          <h2 className="mt-2 break-words text-xl font-semibold text-zinc-950 dark:text-zinc-50">
-            {metricData.title}
-          </h2>
-        </div>
-        <button
-          onClick={onClose}
-          className="rounded-full border border-black/5 p-2 text-zinc-500 transition hover:bg-black/5 dark:border-white/10 dark:text-zinc-400 dark:hover:bg-white/8"
-          aria-label="Закрыть панель"
-        >
-          <X className="size-4" />
-        </button>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-        <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-            Текущее значение
-          </p>
-          <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
-            {metricData.currentValue}
+    <>
+      <aside className="dashboard-panel p-5 md:p-6">
+        {/* ... остальной JSX (без изменений) ... */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
+              Детализация
+            </p>
+            <h2 className="mt-2 break-words text-xl font-semibold text-zinc-950 dark:text-zinc-50">
+              {metricData.title}
+            </h2>
           </div>
-          <Badge className={`mt-3 border ${getStatusColor(metricData.status)}`}>
-            {getStatusText(metricData.status)}
-          </Badge>
+          <button
+            onClick={onClose}
+            className="rounded-full border border-black/5 p-2 text-zinc-500 transition hover:bg-black/5 dark:border-white/10 dark:text-zinc-400 dark:hover:bg-white/8"
+            aria-label="Закрыть панель"
+          >
+            <X className="size-4" />
+          </button>
         </div>
 
-        <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-            Целевой диапазон
-          </p>
-          <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
-            {metricData.targetRange}
-          </div>
-          <Badge className="mt-3 border border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
-            Норма
-          </Badge>
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 7 дней</h3>
-        <div className="mt-4 h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={metricData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="detailMetric" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={getChartColor(metricData.status)} stopOpacity={0.28} />
-                  <stop offset="95%" stopColor={getChartColor(metricData.status)} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(113,113,122,0.16)" vertical={false} />
-              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={formatYAxis} domain={["auto", "auto"]} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "rgba(255,255,255,0.96)",
-                  border: "1px solid rgba(0,0,0,0.06)",
-                  borderRadius: "16px",
-                  color: "#18181b",
-                }}
-                formatter={formatTooltip}
-                labelStyle={{ color: "#71717a" }}
-              />
-              <Area type="monotone" dataKey="value" stroke={getChartColor(metricData.status)} strokeWidth={2.5} fillOpacity={1} fill="url(#detailMetric)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
-        <div className="mt-4 space-y-3">
-          {metricData.problemLocations.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-zinc-500 dark:border-white/10 dark:text-zinc-400">
-              Отклонений по локациям не найдено.
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              Текущее значение
+            </p>
+            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
+              {metricData.currentValue}
             </div>
-          ) : (
-            metricData.problemLocations.map((location) => (
-              <div
-                key={location.name}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 px-4 py-4 dark:border-white/8"
-              >
-                <span className="min-w-0 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">{location.name}</span>
-                <div className="flex items-center gap-2">
-                  <span className={location.status === "critical" ? "text-sm font-semibold text-red-600 dark:text-red-300" : "text-sm font-semibold text-amber-600 dark:text-amber-300"}>
-                    {location.value}
-                  </span>
-                  <Badge
-                    className={
-                      location.status === "critical"
-                        ? "border border-red-500/20 bg-red-500/12 text-red-600 dark:text-red-300"
-                        : "border border-amber-500/20 bg-amber-500/12 text-amber-600 dark:text-amber-300"
-                    }
-                  >
-                    {location.status === "critical" ? "Критично" : "Внимание"}
-                  </Badge>
-                </div>
+            <Badge className={`mt-3 border ${getStatusColor(metricData.status)}`}>
+              {getStatusText(metricData.status)}
+            </Badge>
+          </div>
+
+          <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              Целевой диапазон
+            </p>
+            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
+              {metricData.targetRange}
+            </div>
+            <Badge className="mt-3 border border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
+              Норма
+            </Badge>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 7 дней</h3>
+          <div className="mt-4 h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={metricData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="detailMetric" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={getChartColor(metricData.status)} stopOpacity={0.28} />
+                    <stop offset="95%" stopColor={getChartColor(metricData.status)} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(113,113,122,0.16)" vertical={false} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={formatYAxis} domain={["auto", "auto"]} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "rgba(255,255,255,0.96)",
+                    border: "1px solid rgba(0,0,0,0.06)",
+                    borderRadius: "16px",
+                    color: "#18181b",
+                  }}
+                  formatter={formatTooltip}
+                  labelStyle={{ color: "#71717a" }}
+                />
+                <Area type="monotone" dataKey="value" stroke={getChartColor(metricData.status)} strokeWidth={2.5} fillOpacity={1} fill="url(#detailMetric)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
+          <div className="mt-4 space-y-3">
+            {metricData.problemLocations.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-zinc-500 dark:border-white/10 dark:text-zinc-400">
+                Отклонений по локациям не найдено.
               </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {metricData.relatedIncident && (
-        <div className="mt-5 rounded-[24px] border border-amber-500/20 bg-amber-500/8 p-5">
-          <div className="flex gap-3">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
-            <div>
-              <h4 className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                {metricData.relatedIncident.title}
-              </h4>
-              <p className="mt-1 text-sm text-amber-700/80 dark:text-amber-200/85">
-                {metricData.relatedIncident.description}
-              </p>
-            </div>
+            ) : (
+              metricData.problemLocations.map((location) => (
+                <div
+                  key={location.name}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 px-4 py-4 dark:border-white/8"
+                >
+                  <span className="min-w-0 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">{location.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={location.status === "critical" ? "text-sm font-semibold text-red-600 dark:text-red-300" : "text-sm font-semibold text-amber-600 dark:text-amber-300"}>
+                      {location.value}
+                    </span>
+                    <Badge
+                      className={
+                        location.status === "critical"
+                          ? "border border-red-500/20 bg-red-500/12 text-red-600 dark:text-red-300"
+                          : "border border-amber-500/20 bg-amber-500/12 text-amber-600 dark:text-amber-300"
+                      }
+                    >
+                      {location.status === "critical" ? "Критично" : "Внимание"}
+                    </Badge>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
-      )}
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <Button
-          variant="outline"
-          className="rounded-full border-black/10 bg-white/80 text-zinc-700 hover:bg-white dark:border-white/10 dark:bg-white/4 dark:text-zinc-200 dark:hover:bg-white/8"
-        >
-          <FileText className="size-4" />
-          Полный отчет
-        </Button>
-        <Button className="rounded-full bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200">
-          <ClipboardPlus className="size-4" />
-          Создать задачу
-        </Button>
-      </div>
-    </aside>
+        {metricData.relatedIncident && (
+          <div className="mt-5 rounded-[24px] border border-amber-500/20 bg-amber-500/8 p-5">
+            <div className="flex gap-3">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
+              <div>
+                <h4 className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                  {metricData.relatedIncident.title}
+                </h4>
+                <p className="mt-1 text-sm text-amber-700/80 dark:text-amber-200/85">
+                  {metricData.relatedIncident.description}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Кнопки */}
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setIsReportsModalOpen(true)}
+            className="rounded-full border-black/10 bg-white/80 text-zinc-700 hover:bg-white dark:border-white/10 dark:bg-white/4 dark:text-zinc-200 dark:hover:bg-white/8"
+          >
+            <FileText className="size-4" />
+            Отчеты
+          </Button>
+          <Button 
+            onClick={() => setIsTaskModalOpen(true)}
+            className="rounded-full bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+          >
+            <ClipboardPlus className="size-4" />
+            Создать задачу
+          </Button>
+        </div>
+      </aside>
+
+      <ReportsModal
+        isOpen={isReportsModalOpen}
+        onClose={() => setIsReportsModalOpen(false)}
+        onFullReport={handleFullReport}
+        onPDFReport={handlePDFReport}
+        
+      />
+
+      <CreateTaskModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
+        metricTitle={metricData.title}
+        metricId={activeMetric}
+        currentValue={metricData.currentValue}
+      />
+    </>
   )
 }

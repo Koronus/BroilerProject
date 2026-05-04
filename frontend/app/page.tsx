@@ -97,6 +97,8 @@ export default function DashboardPage() {
             onAgeRangeChange={handleAgeRangeChange}
           />
 
+          
+
           <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_420px]">
             <div className="order-2 xl:order-1">
               <CategorySidebar
@@ -124,6 +126,13 @@ export default function DashboardPage() {
                 <DetailPanel
                   onClose={() => setShowDetailPanel(false)}
                   activeMetric={activeMetric}
+                  // ✅ Передаем все фильтры в DetailPanel
+                  activeCategory={activeCategory}
+                  selectedAge={selectedAge}
+                  selectedWorkshopIds={selectedWorkshopIds}
+                  selectedHouseIds={selectedHouseIds}
+                  selectedBatchIds={selectedBatchIds}
+                  selectedAgeRangeId={selectedAgeRangeId}
                 />
               </div>
             )}
