@@ -92,28 +92,53 @@ export function DetailPanel({
   // ========== РАСЧЕТ СТАТИСТИЧЕСКИХ ПОКАЗАТЕЛЕЙ ==========
 
   const calculateStats = () => {
-    const values = metricData.chartData.map(item => item.value)
-    const avg = values.reduce((a, b) => a + b, 0) / values.length
-    const sorted = [...values].sort((a, b) => a - b)
-    const median = sorted[Math.floor(sorted.length / 2)]
-    const min = Math.min(...values)
-    const max = Math.max(...values)
-    
-    // Стандартное отклонение
-    const variance = values.reduce((acc, val) => acc + Math.pow(val - avg, 2), 0) / values.length
-    const stdDev = Math.sqrt(variance)
-    
-    // Время в норме (процент дней, когда значение в норме)
-    const targetMin = parseFloat(metricData.targetRange.split("-")[0]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "0")
-    const targetMax = parseFloat(metricData.targetRange.split("-")[1]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "100")
-    const inNormCount = values.filter(v => v >= targetMin && v <= targetMax).length
-    const normPercent = (inNormCount / values.length) * 100
-    
-    // Количество превышений (отклонений)
-    const exceedCount = values.filter(v => v > targetMax).length
-    
-    return { avg, median, min, max, stdDev, normPercent, exceedCount, targetMin, targetMax }
+  const values = metricData.chartData.map(item => item.value)
+  const avg = values.reduce((a, b) => a + b, 0) / values.length
+  const sorted = [...values].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  
+  const variance = values.reduce((acc, val) => acc + Math.pow(val - avg, 2), 0) / values.length
+  const stdDev = Math.sqrt(variance)
+  
+  // Универсальный парсинг targetRange
+  let targetMin = -Infinity
+  let targetMax = Infinity
+  const targetRangeStr = metricData.targetRange.trim()
+  
+  // Проверка на формат "min-max" (например, "39.4-40.5")
+  if (targetRangeStr.includes("-") && !targetRangeStr.includes("<") && !targetRangeStr.includes(">")) {
+    const parts = targetRangeStr.split("-")
+    targetMin = parseFloat(parts[0]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "-Infinity")
+    targetMax = parseFloat(parts[1]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "Infinity")
   }
+  // Проверка на формат "< значение" (например, "< 1.5%")
+  else if (targetRangeStr.includes("<")) {
+    const match = targetRangeStr.match(/<\s*([0-9.,]+)/)
+    if (match) {
+      targetMax = parseFloat(match[1].replace(',', '.'))
+      targetMin = -Infinity
+    }
+  }
+  // Проверка на формат "> значение" (например, "> 90%")
+  else if (targetRangeStr.includes(">")) {
+    const match = targetRangeStr.match(/>\s*([0-9.,]+)/)
+    if (match) {
+      targetMin = parseFloat(match[1].replace(',', '.'))
+      targetMax = Infinity
+    }
+  }
+  
+  console.log("targetRange:", targetRangeStr)
+  console.log("targetMin:", targetMin, "targetMax:", targetMax)
+  
+  const inNormCount = values.filter(v => v >= targetMin && v <= targetMax).length
+  const normPercent = (inNormCount / values.length) * 100
+  const exceedCount = values.filter(v => v > targetMax).length
+  
+  return { avg, median, min, max, stdDev, normPercent, exceedCount, targetMin, targetMax }
+}
 
   const stats = calculateStats()
 
@@ -141,15 +166,15 @@ export function DetailPanel({
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-              font-family: 'Segoe UI', Arial, sans-serif; 
+              font-family: 'Times New Roman', Times, serif; 
               padding: 40px; 
               max-width: 1200px; 
               margin: 0 auto; 
               background: white;
               line-height: 1.5;
             }
-            h1 { color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px; }
-            h2 { color: #334155; margin-top: 30px; margin-bottom: 15px; border-left: 4px solid #3b82f6; padding-left: 12px; }
+            h1 { color: #1e293b; border-bottom: 2px; padding-bottom: 10px; margin-bottom: 20px; }
+            h2 { color: #334155; margin-top: 30px; margin-bottom: 15px; border-left: 4px; padding-left: 12px; }
             h3 { color: #475569; margin-top: 20px; margin-bottom: 10px; }
             .header-info {
               background: #f8fafc;
@@ -217,7 +242,7 @@ export function DetailPanel({
           </style>
         </head>
         <body>
-          <button class="print-btn" onclick="window.print()">📄 Сохранить как PDF</button>
+          <button class="print-btn" onclick="window.print()">Сохранить как PDF</button>
           
           <h1 style="text-align: center;">ОТЧЁТ</h1>
           <p><strong>По показателю:</strong> ${metricData.title}</p>
@@ -234,14 +259,14 @@ export function DetailPanel({
           
           
           <!-- 2. Статистические показатели -->
-          <h2>📊 Статистические показатели</h2>
+          <h2>Статистические показатели</h2>
           <div class="stats-grid">
             <div class="stat-card">
               <div class="stat-label">Среднее значение</div>
               <div class="stat-value ${metricData.status === "critical" ? 'status-critical' : metricData.status === "warning" ? 'status-warning' : 'status-normal'}">
                 ${stats.avg.toFixed(2)}${formatUnit()}
               </div>
-              <div>Норма: ${metricData.targetRange}</div>
+              
             </div>
             <div class="stat-card">
               <div class="stat-label">Медиана</div>
@@ -262,25 +287,65 @@ export function DetailPanel({
           </div>
           
           <!-- 3. Распределение по дням -->
-          <h2>📈 Динамика за период</h2>
+          <h2>Динамика за период</h2>
+          
           <table>
-            <thead><tr><th>День</th><th>Значение</th><th>Норма</th><th>Статус</th></tr></thead>
+            <thead>
+              <tr><th>День</th><th>Значение</th><th>Норма</th><th>Статус</th></tr>
+            </thead>
             <tbody>
-              ${metricData.chartData.map(item => `
-                <tr>
-                  <td>${item.day}</td>
-                  <td>${item.value}${formatUnit()}</td>
-                  <td>${metricData.targetRange}</td>
-                  <td class="${item.value > stats.targetMax ? 'status-critical' : 'status-normal'}">
-                    ${item.value > stats.targetMax ? '⚠ Превышение' : (item.value < stats.targetMin ? '⚠ Понижение' : '✓ Норма')}
-                  </td>
-                </tr>
-              `).join('')}
+              ${metricData.chartData.map(item => {
+                let status = ''
+                let statusClass = ''
+                
+                // Для формата "< значение" (критические показатели, должны быть НИЖЕ порога)
+                if (metricData.targetRange.includes("<")) {
+                  if (item.value >= stats.targetMax) {
+                    status = '⚠ Критическое превышение'
+                    statusClass = 'status-critical'
+                  } else {
+                    status = '✓ Норма'
+                    statusClass = 'status-normal'
+                  }
+                }
+                // Для формата "min-max"
+                else if (metricData.targetRange.includes("-") && !metricData.targetRange.includes("<") && !metricData.targetRange.includes(">")) {
+                  if (item.value > stats.targetMax) {
+                    status = '⚠ Превышение'
+                    statusClass = 'status-critical'
+                  } else if (item.value < stats.targetMin) {
+                    status = '⚠ Понижение'
+                    statusClass = 'status-warning'
+                  } else {
+                    status = '✓ Норма'
+                    statusClass = 'status-normal'
+                  }
+                }
+                // Для формата "> значение"
+                else if (metricData.targetRange.includes(">")) {
+                  if (item.value < stats.targetMin) {
+                    status = '⚠ Критическое понижение'
+                    statusClass = 'status-critical'
+                  } else {
+                    status = '✓ Норма'
+                    statusClass = 'status-normal'
+                  }
+                }
+                
+                return `
+                  <tr>
+                    <td>${item.day}</td>
+                    <td>${item.value}${formatUnit()}</td>
+                    <td>${metricData.targetRange}</td>
+                    <td class="${statusClass}">${status}</td>
+                  </tr>
+                `
+              }).join('')}
             </tbody>
           </table>
           
           <!-- 4. Проблемные локации -->
-          <h2>📍Проблемные локации</h2>
+          <h2>Проблемные локации</h2>
           ${metricData.problemLocations.length > 0 ? `
             <table>
               <thead><tr><th>Локация</th><th>Значение</th><th>Статус</th></tr></thead>
@@ -300,7 +365,7 @@ export function DetailPanel({
           
           <!-- 5. Связанный инцидент -->
           ${metricData.relatedIncident ? `
-            <h2>⚠️ Связанные инциденты</h2>
+            <h2>Связанные инциденты</h2>
             <div style="background: #fef3c7; padding: 16px; border-radius: 12px;">
               <strong>${metricData.relatedIncident.title}</strong>
               <p style="margin-top: 8px;">${metricData.relatedIncident.description}</p>
