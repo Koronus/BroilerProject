@@ -1,6 +1,7 @@
 ﻿"use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   AlertTriangle,
   CheckCircle2,
@@ -281,7 +282,7 @@ function FieldSelect({ label, options, value, onValueChange }: { label: string; 
   )
 }
 
-function IncidentDetails({ incident }: { incident: Incident }) {
+function IncidentDetails({ incident, onOpenDetails }: { incident: Incident; onOpenDetails: (id: string) => void }) {
   return (
     <aside className="flex h-full min-h-0 flex-col rounded-br-[28px] border-l border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 px-5 py-4">
@@ -319,7 +320,7 @@ function IncidentDetails({ incident }: { incident: Incident }) {
         <Button variant="outline" className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950">
           <CheckCircle2 className="size-4" />Закрыть
         </Button>
-        <Button className="bg-zinc-950 text-white hover:bg-zinc-800">
+        <Button className="bg-zinc-950 text-white hover:bg-zinc-800" onClick={() => onOpenDetails(incident.id)}>
           <ExternalLink className="size-4" />Открыть подробнее
         </Button>
       </div>
@@ -358,6 +359,7 @@ const responsibleByCategory: Record<string, string[]> = {
 }
 
 export function IncidentsPage() {
+  const router = useRouter()
   const [incidents, setIncidents] = useState<Incident[]>(fallbackIncidents)
   const [activeIncidentId, setActiveIncidentId] = useState(fallbackIncidents[0].id)
   const [searchQuery, setSearchQuery] = useState("")
@@ -627,13 +629,13 @@ export function IncidentsPage() {
           </div>
 
           <div className="mt-5 lg:hidden">
-            {activeIncident ? <IncidentDetails incident={activeIncident} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
+            {activeIncident ? <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
           </div>
         </section>
 
         <div className="hidden min-h-0 lg:block">
           {activeIncident ? (
-            <IncidentDetails incident={activeIncident} />
+            <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} />
           ) : (
             <aside className="flex h-full items-center justify-center rounded-br-[28px] border-l border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</aside>
           )}
