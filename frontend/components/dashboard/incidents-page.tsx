@@ -14,6 +14,8 @@ import {
   ShieldAlert,
   Thermometer,
   TimerReset,
+  ChevronDown,
+  ChevronRight,
   UserRound,
   Wind,
   Wrench,
@@ -282,7 +284,17 @@ function FieldSelect({ label, options, value, onValueChange }: { label: string; 
   )
 }
 
-function IncidentDetails({ incident, onOpenDetails }: { incident: Incident; onOpenDetails: (id: string) => void }) {
+function IncidentDetails({
+  incident,
+  onOpenDetails,
+  onCloseIncident,
+  onReopenIncident,
+}: {
+  incident: Incident
+  onOpenDetails: (id: string) => void
+  onCloseIncident: (id: string) => void
+  onReopenIncident: (id: string) => void
+}) {
   return (
     <aside className="flex h-full min-h-0 flex-col rounded-br-[28px] border-l border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 px-5 py-4">
@@ -314,12 +326,28 @@ function IncidentDetails({ incident, onOpenDetails }: { incident: Incident; onOp
       </div>
 
       <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 px-5 py-4">
-        <Button variant="outline" className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950">
-          <PlayCircle className="size-4" />Взять в работу
-        </Button>
-        <Button variant="outline" className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950">
-          <CheckCircle2 className="size-4" />Закрыть
-        </Button>
+        {incident.status !== "closed" ? (
+          <>
+            <Button variant="outline" className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950">
+              <PlayCircle className="size-4" />Взять в работу
+            </Button>
+            <Button
+              variant="outline"
+              className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+              onClick={() => onCloseIncident(incident.id)}
+            >
+              <CheckCircle2 className="size-4" />Закрыть
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="outline"
+            className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+            onClick={() => onReopenIncident(incident.id)}
+          >
+            <RefreshCcw className="size-4" />Переоткрыть
+          </Button>
+        )}
         <Button className="bg-zinc-950 text-white hover:bg-zinc-800" onClick={() => onOpenDetails(incident.id)}>
           <ExternalLink className="size-4" />Открыть подробнее
         </Button>
@@ -368,6 +396,7 @@ export function IncidentsPage() {
   const [statusFilter, setStatusFilter] = useState("Все статусы")
   const [priorityFilter, setPriorityFilter] = useState("Любой")
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isClosedExpanded, setIsClosedExpanded] = useState(false)
   const [createSuccessMessage, setCreateSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -427,6 +456,9 @@ export function IncidentsPage() {
       return matchesSearch && matchesType && matchesHouse && matchesStatus && matchesPriority
     })
   }, [incidents, searchQuery, typeFilter, houseFilter, statusFilter, priorityFilter])
+
+  const activeFilteredIncidents = filteredIncidents.filter((incident) => incident.status !== "closed")
+  const closedFilteredIncidents = filteredIncidents.filter((incident) => incident.status === "closed")
 
   const activeIncident = filteredIncidents.find((incident) => incident.id === activeIncidentId) ?? filteredIncidents[0] ?? null
 
@@ -503,6 +535,27 @@ export function IncidentsPage() {
     setTimeout(() => setCreateSuccessMessage(""), 4000)
   }
 
+  const handleCloseIncident = (id: string) => {
+    setIncidents((current) =>
+      current.map((incident) =>
+        incident.id === id
+          ? { ...incident, status: "closed", comment: "Инцидент закрыт вручную через карточку." }
+          : incident,
+      ),
+    )
+    setIsClosedExpanded(true)
+  }
+
+  const handleReopenIncident = (id: string) => {
+    setIncidents((current) =>
+      current.map((incident) =>
+        incident.id === id
+          ? { ...incident, status: "inProgress", comment: "Инцидент возвращен в работу." }
+          : incident,
+      ),
+    )
+  }
+
   return (
     <main className="flex min-h-0 flex-1 flex-col rounded-[28px] bg-background">
       <div className="border-b border-zinc-200 px-6 py-4">
@@ -567,7 +620,7 @@ export function IncidentsPage() {
         <section className="min-h-0 overflow-y-auto px-6 py-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Таблица инцидентов</h2>
-            <span className="text-sm text-zinc-500">Найдено: {filteredIncidents.length}</span>
+            <span className="text-sm text-zinc-500">Найдено: {activeFilteredIncidents.length}</span>
           </div>
 
           <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
@@ -587,12 +640,12 @@ export function IncidentsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200">
-                  {filteredIncidents.length === 0 ? (
+                  {activeFilteredIncidents.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="px-4 py-8 text-center text-sm text-zinc-500">Инцидентов по фильтрам нет.</td>
                     </tr>
                   ) : (
-                    filteredIncidents.map((incident) => {
+                    activeFilteredIncidents.map((incident) => {
                       const Icon = incident.icon
                       const isActive = incident.id === activeIncident?.id
 
@@ -629,13 +682,67 @@ export function IncidentsPage() {
           </div>
 
           <div className="mt-5 lg:hidden">
-            {activeIncident ? <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
+            {activeIncident ? <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
+          </div>
+
+          <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+            <button
+              type="button"
+              onClick={() => setIsClosedExpanded((value) => !value)}
+              className="flex w-full items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide text-zinc-700"
+            >
+              <span>Закрытые инциденты ({closedFilteredIncidents.length})</span>
+              {isClosedExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+            </button>
+
+            {isClosedExpanded && (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-left text-sm">
+                  <thead className="border-b border-zinc-200 bg-white text-xs uppercase tracking-wide text-zinc-500">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">№</th>
+                      <th className="px-4 py-3 font-medium">Дата</th>
+                      <th className="px-4 py-3 font-medium">Тип</th>
+                      <th className="px-4 py-3 font-medium">Цех</th>
+                      <th className="px-4 py-3 font-medium">Птичник</th>
+                      <th className="px-4 py-3 font-medium">Ответственный</th>
+                      <th className="px-4 py-3 font-medium">Действие</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200">
+                    {closedFilteredIncidents.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-6 text-center text-sm text-zinc-500">
+                          Закрытых инцидентов по фильтрам нет.
+                        </td>
+                      </tr>
+                    ) : (
+                      closedFilteredIncidents.map((incident) => (
+                        <tr key={`closed-${incident.id}`} className="hover:bg-zinc-50">
+                          <td className="px-4 py-3 font-medium text-zinc-900">{incident.id}</td>
+                          <td className="px-4 py-3 text-zinc-600">{incident.date} {incident.time}</td>
+                          <td className="px-4 py-3 text-zinc-700">{incident.type}</td>
+                          <td className="px-4 py-3 text-zinc-600">{incident.workshop}</td>
+                          <td className="px-4 py-3 text-zinc-600">{incident.poultryHouse}</td>
+                          <td className="px-4 py-3 text-zinc-700">{incident.responsible}</td>
+                          <td className="px-4 py-3">
+                            <Button variant="outline" size="sm" onClick={() => handleReopenIncident(incident.id)}>
+                              Переоткрыть
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </section>
 
         <div className="hidden min-h-0 lg:block">
           {activeIncident ? (
-            <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} />
+            <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} />
           ) : (
             <aside className="flex h-full items-center justify-center rounded-br-[28px] border-l border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</aside>
           )}
