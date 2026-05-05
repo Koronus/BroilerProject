@@ -22,6 +22,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
 type IncidentPriority = "critical" | "high" | "medium" | "low"
@@ -325,6 +327,36 @@ function IncidentDetails({ incident }: { incident: Incident }) {
   )
 }
 
+const categoryOptions = [
+  "Нарушение биобезопасности",
+  "Поломка оборудования",
+  "Качество кормов",
+  "Прочее",
+]
+
+const workshopOptions = ["Цех 1", "Цех 2", "Цех 3"]
+
+const housesByWorkshop: Record<string, string[]> = {
+  "Цех 1": ["Птичник 1", "Птичник 2"],
+  "Цех 2": ["Птичник 4", "Птичник 5"],
+  "Цех 3": ["Птичник 1", "Птичник 3"],
+}
+
+const zonesByHouse: Record<string, string[]> = {
+  "Птичник 1": ["Линия поения 1", "Линия поения 2"],
+  "Птичник 2": ["Склад подстилки", "Основной зал"],
+  "Птичник 3": ["Зона кормления", "Площадка контроля"],
+  "Птичник 4": ["Зона посадки", "Зона вентиляции"],
+  "Птичник 5": ["Модуль вентиляции", "Зона подстилки"],
+}
+
+const responsibleByCategory: Record<string, string[]> = {
+  "Нарушение биобезопасности": ["Ветврач", "Служба дератизации"],
+  "Поломка оборудования": ["Главный инженер", "Дежурный механик"],
+  "Качество кормов": ["Зоотехник", "Лаборатория кормов"],
+  "Прочее": ["Старший смены"],
+}
+
 export function IncidentsPage() {
   const [incidents, setIncidents] = useState<Incident[]>(fallbackIncidents)
   const [activeIncidentId, setActiveIncidentId] = useState(fallbackIncidents[0].id)
@@ -333,8 +365,17 @@ export function IncidentsPage() {
   const [houseFilter, setHouseFilter] = useState("Все птичники")
   const [statusFilter, setStatusFilter] = useState("Все статусы")
   const [priorityFilter, setPriorityFilter] = useState("Любой")
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [createSuccessMessage, setCreateSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [newCategory, setNewCategory] = useState(categoryOptions[0])
+  const [newWorkshop, setNewWorkshop] = useState(workshopOptions[0])
+  const [newHouse, setNewHouse] = useState(housesByWorkshop[workshopOptions[0]][0])
+  const [newZone, setNewZone] = useState(zonesByHouse[housesByWorkshop[workshopOptions[0]][0]][0])
+  const [newPriority, setNewPriority] = useState("Высокий")
+  const [newDescription, setNewDescription] = useState("")
+  const [newResponsible, setNewResponsible] = useState<string[]>(responsibleByCategory[categoryOptions[0]])
 
   useEffect(() => {
     let isCancelled = false
@@ -394,6 +435,72 @@ export function IncidentsPage() {
   const statusOptions = useMemo(() => ["Все статусы", ...Array.from(new Set(incidents.map((i) => statusConfig[i.status].label)))], [incidents])
   const priorityOptions = useMemo(() => ["Любой", ...Array.from(new Set(incidents.map((i) => priorityConfig[i.priority].label)))], [incidents])
 
+  const currentHouseOptions = housesByWorkshop[newWorkshop] ?? []
+  const currentZoneOptions = zonesByHouse[newHouse] ?? []
+  const currentResponsibleOptions = responsibleByCategory[newCategory] ?? ["Старший смены"]
+
+  useEffect(() => {
+    if (newCategory === "Нарушение биобезопасности") {
+      setNewPriority("Высокий")
+    }
+    setNewResponsible(responsibleByCategory[newCategory] ?? ["Старший смены"])
+  }, [newCategory])
+
+  useEffect(() => {
+    const firstHouse = currentHouseOptions[0]
+    if (firstHouse && !currentHouseOptions.includes(newHouse)) {
+      setNewHouse(firstHouse)
+    }
+  }, [newWorkshop, currentHouseOptions, newHouse])
+
+  useEffect(() => {
+    const firstZone = currentZoneOptions[0]
+    if (firstZone && !currentZoneOptions.includes(newZone)) {
+      setNewZone(firstZone)
+    }
+  }, [newHouse, currentZoneOptions, newZone])
+
+  const handleCreateIncident = () => {
+    const nextNumber =
+      incidents.reduce((max, incident) => {
+        const match = incident.id.match(/^INC-(\d+)$/)
+        const value = match ? Number(match[1]) : 0
+        return Math.max(max, value)
+      }, 0) + 1
+
+    const id = `INC-${nextNumber}`
+
+    const priorityByLabel: Record<string, IncidentPriority> = {
+      Критический: "critical",
+      Высокий: "high",
+      Средний: "medium",
+      Низкий: "low",
+    }
+
+    const createdIncident: Incident = {
+      id,
+      date: new Date().toLocaleDateString("ru-RU"),
+      time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+      type: newCategory,
+      icon: newCategory === "Поломка оборудования" ? Wrench : AlertTriangle,
+      shortDescription: newDescription.slice(0, 80) || "Новый инцидент",
+      description: newDescription || "Описание не заполнено.",
+      workshop: newWorkshop,
+      poultryHouse: newHouse,
+      zone: newZone,
+      priority: priorityByLabel[newPriority] ?? "medium",
+      status: "new",
+      responsible: newResponsible.join(", "),
+      comment: "Создан вручную через форму инцидента.",
+    }
+
+    setIncidents((current) => [createdIncident, ...current])
+    setActiveIncidentId(id)
+    setIsCreateOpen(false)
+    setCreateSuccessMessage(`Инцидент №${id} успешно создан и передан в работу`)
+    setTimeout(() => setCreateSuccessMessage(""), 4000)
+  }
+
   return (
     <main className="flex min-h-0 flex-1 flex-col rounded-[28px] bg-background">
       <div className="border-b border-zinc-200 px-6 py-4">
@@ -417,12 +524,17 @@ export function IncidentsPage() {
                 className="h-10 border-zinc-300 bg-white pl-9 text-zinc-900 placeholder:text-zinc-500"
               />
             </div>
-            <Button className="bg-red-600 text-white hover:bg-red-700">
+            <Button onClick={() => setIsCreateOpen(true)} className="bg-red-600 text-white hover:bg-red-700">
               <ClipboardPlus className="size-4" />Создать инцидент
             </Button>
           </div>
         </div>
       </div>
+      {createSuccessMessage && (
+        <div className="fixed bottom-5 right-5 z-50 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-md">
+          {createSuccessMessage}
+        </div>
+      )}
 
       <section className="grid gap-3 border-b border-zinc-200 px-6 py-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpiItems.map((item) => {
@@ -527,6 +639,92 @@ export function IncidentsPage() {
           )}
         </div>
       </div>
+
+      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-[460px]">
+          <SheetHeader>
+            <SheetTitle>Создание инцидента</SheetTitle>
+            <SheetDescription>Заполните форму и нажмите «Создать»</SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-4 overflow-y-auto px-4 pb-4">
+            <label className="block space-y-1">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">Категория</span>
+              <select value={newCategory} onChange={(event) => setNewCategory(event.target.value)} className="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm">
+                {categoryOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">Цех</span>
+              <select value={newWorkshop} onChange={(event) => setNewWorkshop(event.target.value)} className="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm">
+                {workshopOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">Птичник</span>
+              <select value={newHouse} onChange={(event) => setNewHouse(event.target.value)} className="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm">
+                {currentHouseOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">Зона</span>
+              <select value={newZone} onChange={(event) => setNewZone(event.target.value)} className="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm">
+                {currentZoneOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">Приоритет</span>
+              <select value={newPriority} onChange={(event) => setNewPriority(event.target.value)} className="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm">
+                {["Низкий", "Средний", "Высокий", "Критический"].map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">Описание</span>
+              <Textarea value={newDescription} onChange={(event) => setNewDescription(event.target.value)} placeholder="Опишите, что произошло..." />
+            </label>
+
+            <label className="block space-y-1">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">Ответственный</span>
+              <select
+                multiple
+                value={newResponsible}
+                onChange={(event) =>
+                  setNewResponsible(Array.from(event.target.selectedOptions).map((option) => option.value))
+                }
+                className="min-h-24 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              >
+                {currentResponsibleOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+              Отмена
+            </Button>
+            <Button onClick={handleCreateIncident} className="bg-zinc-950 text-white hover:bg-zinc-800">
+              Создать
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </main>
   )
 }
