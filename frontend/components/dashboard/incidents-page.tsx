@@ -9,7 +9,10 @@ import {
   Clock3,
   Droplets,
   ExternalLink,
+  Download,
+  Link2,
   PlayCircle,
+  RefreshCcw,
   Search,
   ShieldAlert,
   Thermometer,
@@ -61,6 +64,7 @@ interface Incident {
   status: IncidentStatus
   responsible: string
   comment: string
+  closedAt?: string
 }
 
 const priorityConfig: Record<IncidentPriority, { label: string; className: string; rowClass: string; iconClass: string }> = {
@@ -252,6 +256,7 @@ const fallbackIncidents: Incident[] = [
     status: "closed",
     responsible: "Морозов",
     comment: "Вентилятор перезапущен, контрольный период пройден.",
+    closedAt: "15.04.2026, 09:40",
   },
   {
     id: "INC-5",
@@ -289,11 +294,15 @@ function IncidentDetails({
   onOpenDetails,
   onCloseIncident,
   onReopenIncident,
+  onDownloadReport,
+  onCreateRelated,
 }: {
   incident: Incident
   onOpenDetails: (id: string) => void
   onCloseIncident: (id: string) => void
   onReopenIncident: (id: string) => void
+  onDownloadReport: (id: string) => void
+  onCreateRelated: (id: string) => void
 }) {
   return (
     <aside className="flex h-full min-h-0 flex-col rounded-br-[28px] border-l border-zinc-200 bg-white">
@@ -323,6 +332,19 @@ function IncidentDetails({
             <p className="mt-1 text-sm font-medium text-zinc-900">{incident.poultryHouse}</p>
           </div>
         </section>
+        {incident.status === "closed" && (
+          <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+            <p className="font-medium">Статус: Закрыт{incident.closedAt ? ` (${incident.closedAt})` : ""}</p>
+          </section>
+        )}
+        <section>
+          <p className="mb-1 text-xs uppercase tracking-wide text-zinc-500">
+            {incident.status === "closed" ? "Итог / решение" : "Комментарий"}
+          </p>
+          <p className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+            {incident.comment}
+          </p>
+        </section>
       </div>
 
       <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 px-5 py-4">
@@ -340,13 +362,21 @@ function IncidentDetails({
             </Button>
           </>
         ) : (
-          <Button
-            variant="outline"
-            className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
-            onClick={() => onReopenIncident(incident.id)}
-          >
-            <RefreshCcw className="size-4" />Переоткрыть
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+              onClick={() => onReopenIncident(incident.id)}
+            >
+              <RefreshCcw className="size-4" />Переоткрыть
+            </Button>
+            <Button variant="outline" className="border-zinc-300 bg-white" onClick={() => onDownloadReport(incident.id)}>
+              <Download className="size-4" />Скачать отчет
+            </Button>
+            <Button variant="outline" className="border-zinc-300 bg-white" onClick={() => onCreateRelated(incident.id)}>
+              <Link2 className="size-4" />Создать связанный
+            </Button>
+          </>
         )}
         <Button className="bg-zinc-950 text-white hover:bg-zinc-800" onClick={() => onOpenDetails(incident.id)}>
           <ExternalLink className="size-4" />Открыть подробнее
@@ -539,7 +569,12 @@ export function IncidentsPage() {
     setIncidents((current) =>
       current.map((incident) =>
         incident.id === id
-          ? { ...incident, status: "closed", comment: "Инцидент закрыт вручную через карточку." }
+          ? {
+              ...incident,
+              status: "closed",
+              comment: "Инцидент закрыт вручную через карточку.",
+              closedAt: new Date().toLocaleString("ru-RU"),
+            }
           : incident,
       ),
     )
@@ -550,10 +585,26 @@ export function IncidentsPage() {
     setIncidents((current) =>
       current.map((incident) =>
         incident.id === id
-          ? { ...incident, status: "inProgress", comment: "Инцидент возвращен в работу." }
+          ? { ...incident, status: "inProgress", comment: "Инцидент возвращен в работу.", closedAt: undefined }
           : incident,
       ),
     )
+  }
+
+  const handleDownloadReport = (id: string) => {
+    setCreateSuccessMessage(`Сформирован отчет по инциденту ${id} (демо).`)
+    setTimeout(() => setCreateSuccessMessage(""), 3000)
+  }
+
+  const handleCreateRelated = (id: string) => {
+    const sourceIncident = incidents.find((incident) => incident.id === id)
+    if (!sourceIncident) return
+
+    setNewCategory(sourceIncident.type)
+    setNewWorkshop(sourceIncident.workshop)
+    setNewHouse(sourceIncident.poultryHouse)
+    setNewDescription(`Связан с ${id}: продолжение кейса.`)
+    setIsCreateOpen(true)
   }
 
   return (
@@ -682,7 +733,7 @@ export function IncidentsPage() {
           </div>
 
           <div className="mt-5 lg:hidden">
-            {activeIncident ? <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
+            {activeIncident ? <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
           </div>
 
           <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
@@ -742,7 +793,7 @@ export function IncidentsPage() {
 
         <div className="hidden min-h-0 lg:block">
           {activeIncident ? (
-            <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} />
+            <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} />
           ) : (
             <aside className="flex h-full items-center justify-center rounded-br-[28px] border-l border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</aside>
           )}
