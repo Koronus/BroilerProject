@@ -429,7 +429,6 @@ export function IncidentsPage() {
   const [isClosedExpanded, setIsClosedExpanded] = useState(false)
   const [createSuccessMessage, setCreateSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
   const [newCategory, setNewCategory] = useState(categoryOptions[0])
   const [newWorkshop, setNewWorkshop] = useState(workshopOptions[0])
   const [newHouse, setNewHouse] = useState(housesByWorkshop[workshopOptions[0]][0])
@@ -454,13 +453,11 @@ export function IncidentsPage() {
         if (!isCancelled) {
           setIncidents(nextIncidents.length > 0 ? nextIncidents : fallbackIncidents)
           setActiveIncidentId((nextIncidents[0] ?? fallbackIncidents[0]).id)
-          setLoadError(null)
         }
       } catch {
         if (!isCancelled) {
           setIncidents(fallbackIncidents)
           setActiveIncidentId(fallbackIncidents[0].id)
-          setLoadError("Бэкенд недоступен, показаны тестовые инциденты")
         }
       } finally {
         if (!isCancelled) setIsLoading(false)
@@ -616,7 +613,6 @@ export function IncidentsPage() {
             <p className="mt-2 text-sm text-zinc-500">Контроль отклонений, ответственных и статусов выполнения</p>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-zinc-500">
               {isLoading && <span>Загрузка из бэкенда...</span>}
-              {loadError && <span className="text-amber-600">{loadError}</span>}
             </div>
           </div>
 
