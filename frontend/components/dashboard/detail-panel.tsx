@@ -1,16 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { AlertTriangle, ClipboardPlus, FileText, X } from "lucide-react"
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
+import { useRouter } from "next/navigation"
+import { AlertTriangle, ClipboardPlus, ExternalLink, FileText, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { metricsDetails } from "@/lib/metricks-detail"
@@ -40,9 +32,17 @@ export function DetailPanel({
   selectedBatchIds = [],
   selectedAgeRangeId = "all"
 }: DetailPanelProps) {
+  const router = useRouter()
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false)
   const metricData = metricsDetails[activeMetric]
+  const incidentByMetric: Record<string, string> = {
+    temperature_21_30: "INC-1",
+    mortality_21_30: "INC-2",
+    water_intake_21_30: "INC-3",
+    ammonia_21_30: "INC-5",
+  }
+  const relatedIncidentId = incidentByMetric[activeMetric]
 
   if (!metricData) {
     return (
@@ -528,35 +528,29 @@ export function DetailPanel({
           </div>
         </div>
 
-        <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 7 дней</h3>
-          <div className="mt-4 h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={metricData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="detailMetric" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={getChartColor(metricData.status)} stopOpacity={0.28} />
-                    <stop offset="95%" stopColor={getChartColor(metricData.status)} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(113,113,122,0.16)" vertical={false} />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={formatYAxis} domain={["auto", "auto"]} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "rgba(255,255,255,0.96)",
-                    border: "1px solid rgba(0,0,0,0.06)",
-                    borderRadius: "16px",
-                    color: "#18181b",
-                  }}
-                  formatter={formatTooltip}
-                  labelStyle={{ color: "#71717a" }}
-                />
-                <Area type="monotone" dataKey="value" stroke={getChartColor(metricData.status)} strokeWidth={2.5} fillOpacity={1} fill="url(#detailMetric)" />
-              </AreaChart>
-            </ResponsiveContainer>
+        {relatedIncidentId && (
+          <div className="mt-5 rounded-[24px] border border-amber-500/20 bg-amber-500/8 p-5">
+            <div className="flex gap-3">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                  Связан с инцидентом {relatedIncidentId}
+                </h3>
+                <p className="mt-1 text-sm text-amber-700/80 dark:text-amber-200/85">
+                  Подробный график и хронология доступны в карточке инцидента.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push(`/incidents/${relatedIncidentId}`)}
+                  className="mt-3 rounded-full border-amber-500/30 bg-white/80 text-amber-800 hover:bg-amber-50"
+                >
+                  <ExternalLink className="size-4" />
+                  Открыть инцидент
+                </Button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
           <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
