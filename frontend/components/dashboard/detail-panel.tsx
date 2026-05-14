@@ -154,235 +154,406 @@ export function DetailPanel({
 
   // ========== ФУНКЦИЯ ГЕНЕРАЦИИ ПОЛНОГО ОТЧЕТА ==========
 
-  const generateFullReportHTML = () => {
-    const timeDistribution = getTimeDistribution()
-    
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          
-          <meta charset="UTF-8">
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { 
-              font-family: 'Times New Roman', Times, serif; 
-              padding: 40px; 
-              max-width: 1200px; 
-              margin: 0 auto; 
-              background: white;
-              line-height: 1.5;
-            }
-            h1 { color: #1e293b; border-bottom: 2px; padding-bottom: 10px; margin-bottom: 20px; }
-            h2 { color: #334155; margin-top: 30px; margin-bottom: 15px; border-left: 4px; padding-left: 12px; }
-            h3 { color: #475569; margin-top: 20px; margin-bottom: 10px; }
-            .header-info {
-              background: #f8fafc;
-              padding: 16px;
-              border-radius: 12px;
-              margin-bottom: 20px;
-              border: 1px solid #e2e8f0;
-            }
-            .executive-summary {
-              background: #f0fdf4;
-              border-left: 4px solid #10b981;
-              padding: 16px;
-              border-radius: 12px;
-              margin-bottom: 20px;
-            }
-            .status-critical { color: #dc2626; }
-            .status-warning { color: #f59e0b; }
-            .status-normal { color: #10b981; }
-            table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-            th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
-            th { background-color: #f1f5f9; font-weight: 600; }
-            .stats-grid {
-              display: grid;
-              grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-              gap: 16px;
-              margin: 20px 0;
-            }
-            .stat-card {
-              background: #f8fafc;
-              border: 1px solid #e2e8f0;
-              border-radius: 12px;
-              padding: 16px;
-            }
-            .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 5px; }
-            .stat-value { font-size: 24px; font-weight: bold; color: #1e293b; }
-            .recommendation-box {
-              background: #fef3c7;
-              border-left: 4px solid #f59e0b;
-              padding: 16px;
-              border-radius: 12px;
-              margin-top: 20px;
-            }
-            .footer {
-              margin-top: 50px;
-              padding-top: 20px;
-              border-top: 1px solid #e2e8f0;
-              text-align: center;
-              font-size: 12px;
-              color: #94a3b8;
-            }
-            .print-btn {
-              position: fixed;
-              top: 20px;
-              right: 20px;
-              padding: 8px 16px;
-              background: #3b82f6;
-              color: white;
-              border: none;
-              border-radius: 8px;
-              cursor: pointer;
-            }
-            @media print {
-              .print-btn { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <button class="print-btn" onclick="window.print()">Сохранить как PDF</button>
-          
-          <h1 style="text-align: center;">ОТЧЁТ</h1>
-          <p><strong>По показателю:</strong> ${metricData.title}</p>
-          
-          <div class="header-info">
-            <p><strong>Объект:</strong> ${getSelectedWorkshopNames()}</p>
-            <p><strong>Птичники:</strong> ${getSelectedHouseNames()}</p>
-            <p><strong>Партии:</strong> ${getSelectedBatchNames()}</p>
-            <p><strong>Период:</strong> ${metricData.chartData[0]?.day} - ${metricData.chartData[metricData.chartData.length-1]?.day} (7 дней)</p>
-            <p><strong>Дата генерации отчета:</strong> ${new Date().toLocaleString('ru-RU')}</p>
-            <p><strong>Возраст птицы:</strong> ${selectedAge === "0-3" ? "0-3 дня" : "21-30 дней"}</p>
+ // ========== ФУНКЦИЯ ГЕНЕРАЦИИ ПОЛНОГО ОТЧЕТА ==========
+
+const generateFullReportHTML = () => {
+  // Расчет дополнительных статистических показателей
+  const values = metricData.chartData.map(item => item.value)
+  const range = stats.max - stats.min
+  const variance = values.reduce((acc, val) => acc + Math.pow(val - stats.avg, 2), 0) / values.length
+  const cv = (stats.stdDev / stats.avg) * 100 // Коэффициент вариации
+  const uniformity = Math.max(0, 100 - cv * 2) // Однородность стада (упрощенная формула)
+  const dailyChange = values[values.length - 1] - values[0]
+  const avgDailyGain = dailyChange / (values.length - 1)
+  
+  // Определение тренда
+  let trend = "Стабильный"
+  let trendDirection = "stable"
+  if (dailyChange > 0.05 * stats.avg) {
+    trend = "Рост"
+    trendDirection = "up"
+  } else if (dailyChange < -0.05 * stats.avg) {
+    trend = "Снижение"
+    trendDirection = "down"
+  }
+  
+  // Определение риска
+  let riskLevel = "Низкий"
+  let riskClass = "status-normal"
+  if (metricData.status === "critical") {
+    riskLevel = "Высокий"
+    riskClass = "status-critical"
+  } else if (metricData.status === "warning") {
+    riskLevel = "Средний"
+    riskClass = "status-warning"
+  }
+  
+  // Формирование ID отчета
+  const reportId = `REP-${metricData.title.substring(0, 4).toUpperCase()}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 1000)}`
+  
+  // Прогноз на 7 дней
+  const forecastValue = stats.avg + dailyChange * 2
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Универсальный отчет - ${metricData.title}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: 'Times New Roman', Times, serif; 
+            padding: 40px; 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white;
+            line-height: 1.4;
+            font-size: 11pt;
+          }
+          h1 { 
+            color: #1e293b; 
+            border-bottom: 2px solid #1e293b; 
+            padding-bottom: 10px; 
+            margin-bottom: 20px;
+            font-size: 18pt;
+            text-align: center;
+          }
+          h2 { 
+            color: #334155; 
+            margin-top: 20px; 
+            margin-bottom: 10px; 
+            padding-left: 12px;
+            font-size: 14pt;
+            background: #f8fafc;
+          }
+          h3 { 
+            color: #475569; 
+            margin-top: 15px; 
+            margin-bottom: 8px;
+            font-size: 12pt;
+          }
+          .header-info {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+          }
+          .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin: 15px 0;
+          }
+          .info-item {
+            display: flex;
+            padding: 6px 0;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          .info-label {
+            font-weight: 600;
+            width: 180px;
+            color: #475569;
+          }
+          .info-value {
+            color: #1e293b;
+          }
+          .status-summary {
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+          }
+          .status-critical { color: #dc2626; font-weight: bold; }
+          .status-warning { color: #f59e0b; font-weight: bold; }
+          .status-normal { color: #10b981; font-weight: bold; }
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 12px 0; 
+          }
+          th, td { 
+            border: 1px solid #e2e8f0; 
+            padding: 8px; 
+            text-align: left; 
+          }
+          th { 
+            background-color: #f1f5f9; 
+            font-weight: 600;
+          }
+          .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin: 15px 0;
+          }
+          .stat-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+          }
+          .stat-label {
+            font-size: 10pt;
+            color: #64748b;
+            margin-bottom: 5px;
+          }
+          .stat-value {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #1e293b;
+          }
+          .recommendation-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 15px 0;
+          }
+          .formula-box {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 10px 0;
+          }
+          .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+            text-align: center;
+            font-size: 9pt;
+            color: #94a3b8;
+          }
+          .print-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+          }
+          @media print {
+            .print-btn { display: none; }
+            body { padding: 20px; }
+          }
+        </style>
+      </head>
+      <body>
+        <button class="print-btn" onclick="window.print()">📄 Сохранить как PDF</button>
+        
+        <h1>Отчет по технологическому показателю</h1>
+        
+        <!-- 1. Общая информация -->
+        <h2>1. Общая информация</h2>
+        <div class="header-info">
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">ID отчета:</span><span class="info-value">${reportId}</span></div>
+            <div class="info-item"><span class="info-label">Тип показателя:</span><span class="info-value">${metricData.title}</span></div>
+            <div class="info-item"><span class="info-label">Категория:</span><span class="info-value">${activeCategory === "microclimate" ? "Микроклимат" : activeCategory === "herd" ? "Состояние стада" : activeCategory === "consumption" ? "Потребление ресурсов" : "Производственные параметры"}</span></div>
+            <div class="info-item"><span class="info-label">Объект:</span><span class="info-value">${getSelectedWorkshopNames()}</span></div>
+            <div class="info-item"><span class="info-label">Птичник:</span><span class="info-value">${getSelectedHouseNames()}</span></div>
+            <div class="info-item"><span class="info-label">Партия:</span><span class="info-value">${getSelectedBatchNames()}</span></div>
+            <div class="info-item"><span class="info-label">Возраст птицы:</span><span class="info-value">${selectedAge === "0-3" ? "0-3 дня" : "21-30 дней"}</span></div>
+            <div class="info-item"><span class="info-label">Период анализа:</span><span class="info-value">7 дней</span></div>
+            <div class="info-item"><span class="info-label">Дата формирования:</span><span class="info-value">${new Date().toLocaleString('ru-RU')}</span></div>
+            <div class="info-item"><span class="info-label">Источник данных:</span><span class="info-value">Датчики / Система мониторинга</span></div>
+            <div class="info-item"><span class="info-label">Количество измерений:</span><span class="info-value">${metricData.chartData.length}</span></div>
+            <div class="info-item"><span class="info-label">Версия шаблона:</span><span class="info-value">v2.1</span></div>
           </div>
-          
-          
-          
-          <!-- 2. Статистические показатели -->
-          <h2>Статистические показатели</h2>
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-label">Среднее значение</div>
-              <div class="stat-value ${metricData.status === "critical" ? 'status-critical' : metricData.status === "warning" ? 'status-warning' : 'status-normal'}">
-                ${stats.avg.toFixed(2)}${formatUnit()}
-              </div>
-              
-            </div>
-            <div class="stat-card">
-              <div class="stat-label">Медиана</div>
-              <div class="stat-value">${stats.median.toFixed(2)}${formatUnit()}</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-label">Минимальное значение</div>
-              <div class="stat-value">${stats.min.toFixed(2)}${formatUnit()}</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-label">Максимальное значение</div>
-              <div class="stat-value ${stats.max > stats.targetMax ? 'status-critical' : ''}">
-                ${stats.max.toFixed(2)}${formatUnit()}
-              </div>
-            </div>
-            
-            
+        </div>
+        
+        <!-- 2. Сводка состояния -->
+        <h2>2. Сводка состояния</h2>
+        <div class="status-summary">
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Общий статус:</span><span class="info-value ${metricData.status === 'critical' ? 'status-critical' : metricData.status === 'warning' ? 'status-warning' : 'status-normal'}">${metricData.status === "critical" ? "Критично" : metricData.status === "warning" ? "Требует внимания" : "Норма"}</span></div>
+            <div class="info-item"><span class="info-label">Тренд:</span><span class="info-value">${trend}</span></div>
+            <div class="info-item"><span class="info-label">Риск:</span><span class="info-value ${riskClass}">${riskLevel}</span></div>
+            <div class="info-item"><span class="info-label">Однородность стада:</span><span class="info-value">${uniformity > 85 ? "Высокая" : uniformity > 70 ? "Средняя" : "Низкая"}</span></div>
+            <div class="info-item"><span class="info-label">Критических отклонений:</span><span class="info-value">${stats.exceedCount > 0 ? `Выявлено ${stats.exceedCount}` : "Не выявлено"}</span></div>
+            <div class="info-item"><span class="info-label">Проблемных зон:</span><span class="info-value">${metricData.problemLocations.length}</span></div>
           </div>
-          
-          <!-- 3. Распределение по дням -->
-          <h2>Динамика за период</h2>
-          
+        </div>
+        
+        <!-- 3. Основные статистические показатели -->
+        <h2>3. Основные статистические показатели</h2>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Среднее значение</div><div class="stat-value">${stats.avg.toFixed(2)}${formatUnit()}</div></div>
+          <div class="stat-card"><div class="stat-label">Медиана</div><div class="stat-value">${stats.median.toFixed(2)}${formatUnit()}</div></div>
+          <div class="stat-card"><div class="stat-label">Минимальное значение</div><div class="stat-value">${stats.min.toFixed(2)}${formatUnit()}</div></div>
+          <div class="stat-card"><div class="stat-label">Максимальное значение</div><div class="stat-value">${stats.max.toFixed(2)}${formatUnit()}</div></div>
+          <div class="stat-card"><div class="stat-label">Размах</div><div class="stat-value">${range.toFixed(2)}${formatUnit()}</div></div>
+        </div>
+        
+        <!-- 4. Показатели вариативности и однородности -->
+        <h2>4. Показатели вариативности и однородности</h2>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Дисперсия</div><div class="stat-value">${variance.toFixed(4)} — ${variance < 0.1 ? "низкий разброс" : "средний разброс"}</div></div>
+          <div class="stat-card"><div class="stat-label">Стандартное отклонение</div><div class="stat-value">${stats.stdDev.toFixed(3)}${formatUnit()} — ${stats.stdDev < 0.5 ? "стабильное распределение" : "нестабильное распределение"}</div></div>
+          <div class="stat-card"><div class="stat-label">Коэффициент вариации (CV)</div><div class="stat-value">${cv.toFixed(2)}% — ${cv < 5 ? "высокая однородность" : cv < 10 ? "средняя однородность" : "низкая однородность"}</div></div>
+          <div class="stat-card"><div class="stat-label">Однородность стада</div><div class="stat-value">${uniformity.toFixed(0)}% — ${uniformity >= 85 ? "выше нормативной" : uniformity >= 70 ? "в пределах нормы" : "ниже нормы"}</div></div>
+        </div>
+        
+        <!-- 5. Формула коэффициента вариации -->
+        <h2>5. Формула коэффициента вариации</h2>
+        <div class="formula-box">
+          <strong>CV = σ / μ × 100%</strong><br>
+          Где σ — стандартное отклонение (${stats.stdDev.toFixed(3)}${formatUnit()}), μ — среднее значение (${stats.avg.toFixed(2)}${formatUnit()})<br>
+          Для птицеводства коэффициент вариации является одним из ключевых показателей однородности стада.
+        </div>
+        
+        <!-- 6. Нормативные значения -->
+        <h2>6. Нормативные значения</h2>
+        <table>
+          <thead><tr><th>Показатель</th><th>Норма</th><th>Источник</th></tr></thead>
+          <tbody>
+            <tr><td>${metricData.title} ${selectedAge === "0-3" ? "0-3 дня" : "21-30 дней"}</td><td>${metricData.targetRange}</td><td>Стандарт предприятия</td></tr>
+            <tr><td>CV</td><td>≤ 10%</td><td>Технологический норматив</td></tr>
+            <tr><td>Однородность</td><td>≥ 85%</td><td>Производственный KPI</td></tr>
+          </tbody>
+        </table>
+        
+        <!-- 7. Динамика показателя за период -->
+        <h2>7. Динамика показателя за период</h2>
+        <table>
+          <thead><tr><th>День</th><th>Значение</th><th>Норма</th><th>Отклонение</th><th>Статус</th></tr></thead>
+          <tbody>
+            ${metricData.chartData.map(item => {
+              const deviation = item.value - stats.avg
+              let status = ''
+              let statusClass = ''
+              if (metricData.targetRange.includes("<")) {
+                if (item.value >= stats.targetMax) {
+                  status = 'Критическое превышение'
+                  statusClass = 'status-critical'
+                } else {
+                  status = ''
+                  statusClass = 'status-normal'
+                }
+              } else if (metricData.targetRange.includes("-")) {
+                if (item.value > stats.targetMax) {
+                  status = 'Превышение'
+                  statusClass = 'status-critical'
+                } else if (item.value < stats.targetMin) {
+                  status = 'Понижение'
+                  statusClass = 'status-warning'
+                } else {
+                  status = ''
+                  statusClass = 'status-normal'
+                }
+              } else if (metricData.targetRange.includes(">")) {
+                if (item.value < stats.targetMin) {
+                  status = 'Критическое понижение'
+                  statusClass = 'status-critical'
+                } else {
+                  status = ''
+                  statusClass = 'status-normal'
+                }
+              }
+              return `<tr><td>${item.day}</td><td>${item.value}${formatUnit()}</td><td>${metricData.targetRange}</td><td>${deviation > 0 ? '+' : ''}${deviation.toFixed(2)}${formatUnit()}</td><td class="${statusClass}">${status}</td></tr>`
+            }).join('')}
+          </tbody>
+        </table>
+        
+        <!-- 8. Анализ динамики -->
+        <h2>8. Анализ динамики</h2>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Изменение за период</div><div class="stat-value">${dailyChange > 0 ? '+' : ''}${dailyChange.toFixed(2)}${formatUnit()}</div></div>
+          <div class="stat-card"><div class="stat-label">Среднесуточный прирост</div><div class="stat-value">${avgDailyGain > 0 ? '+' : ''}${avgDailyGain.toFixed(3)}${formatUnit()}</div></div>
+          <div class="stat-card"><div class="stat-label">Направление тренда</div><div class="stat-value">${trendDirection === 'up' ? 'Положительный' : trendDirection === 'down' ? 'Отрицательный' : 'Стабильный'}</div></div>
+          <div class="stat-card"><div class="stat-label">Стабильность</div><div class="stat-value">${stats.stdDev < 0.5 ? "Высокая" : stats.stdDev < 1 ? "Средняя" : "Низкая"}</div></div>
+        </div>
+        
+        <!-- 9. Проблемные зоны -->
+        <h2>9. Проблемные зоны</h2>
+        ${metricData.problemLocations.length > 0 ? `
           <table>
-            <thead>
-              <tr><th>День</th><th>Значение</th><th>Норма</th><th>Статус</th></tr>
-            </thead>
+            <thead><tr><th>Локация</th><th>Значение</th><th>Отклонение</th><th>Уровень риска</th><th>Статус</th></tr></thead>
             <tbody>
-              ${metricData.chartData.map(item => {
-                let status = ''
-                let statusClass = ''
-                
-                // Для формата "< значение" (критические показатели, должны быть НИЖЕ порога)
-                if (metricData.targetRange.includes("<")) {
-                  if (item.value >= stats.targetMax) {
-                    status = '⚠ Критическое превышение'
-                    statusClass = 'status-critical'
-                  } else {
-                    status = '✓ Норма'
-                    statusClass = 'status-normal'
-                  }
-                }
-                // Для формата "min-max"
-                else if (metricData.targetRange.includes("-") && !metricData.targetRange.includes("<") && !metricData.targetRange.includes(">")) {
-                  if (item.value > stats.targetMax) {
-                    status = '⚠ Превышение'
-                    statusClass = 'status-critical'
-                  } else if (item.value < stats.targetMin) {
-                    status = '⚠ Понижение'
-                    statusClass = 'status-warning'
-                  } else {
-                    status = '✓ Норма'
-                    statusClass = 'status-normal'
-                  }
-                }
-                // Для формата "> значение"
-                else if (metricData.targetRange.includes(">")) {
-                  if (item.value < stats.targetMin) {
-                    status = '⚠ Критическое понижение'
-                    statusClass = 'status-critical'
-                  } else {
-                    status = '✓ Норма'
-                    statusClass = 'status-normal'
-                  }
-                }
-                
-                return `
-                  <tr>
-                    <td>${item.day}</td>
-                    <td>${item.value}${formatUnit()}</td>
-                    <td>${metricData.targetRange}</td>
-                    <td class="${statusClass}">${status}</td>
-                  </tr>
-                `
+              ${metricData.problemLocations.map(loc => {
+                const deviation = parseFloat(loc.value) - stats.avg
+                return `<tr>
+                  <td>${loc.name}</td>
+                  <td>${loc.value}</td>
+                  <td>${deviation > 0 ? '+' : ''}${deviation.toFixed(2)}${formatUnit()}</td>
+                  <td>${loc.status === 'critical' ? 'Высокий' : 'Средний'}</td>
+                  <td class="${loc.status === 'critical' ? 'status-critical' : 'status-warning'}">${loc.status === 'critical' ? '⚠ Требует внимания' : '⚠ Внимание'}</td>
+                </tr>`
               }).join('')}
             </tbody>
           </table>
-          
-          <!-- 4. Проблемные локации -->
-          <h2>Проблемные локации</h2>
-          ${metricData.problemLocations.length > 0 ? `
-            <table>
-              <thead><tr><th>Локация</th><th>Значение</th><th>Статус</th></tr></thead>
-              <tbody>
-                ${metricData.problemLocations.map(loc => `
-                  <tr>
-                    <td>${loc.name}</td>
-                    <td>${loc.value}</td>
-                    <td class="${loc.status === 'critical' ? 'status-critical' : 'status-warning'}">
-                      ${loc.status === 'critical' ? '⚠ Критично' : '⚠ Требует внимания'}
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          ` : '<p>Отклонений по локациям не найдено</p>'}
-          
-          <!-- 5. Связанный инцидент -->
-          ${metricData.relatedIncident ? `
-            <h2>Связанные инциденты</h2>
-            <div style="background: #fef3c7; padding: 16px; border-radius: 12px;">
-              <strong>${metricData.relatedIncident.title}</strong>
-              <p style="margin-top: 8px;">${metricData.relatedIncident.description}</p>
-            </div>
-          ` : ''}
-          
-         
-          
-          <div class="footer">
-            <p>Сформировано автоматически</p>
-            <p>Источник данных: ${metricData.chartData.length} измерений</p>
-            <p>АгроКонтроль — Ситуационный центр</p>
+        ` : '<p>Проблемных зон не выявлено</p>'}
+        
+        <!-- 10. Возможные причины отклонений -->
+        <h2>10. Возможные причины отклонений</h2>
+        <table>
+          <thead><tr><th>Фактор</th><th>Вероятность</th></tr></thead>
+          <tbody>
+            <tr><td>Снижение потребления корма</td><td>${metricData.status === 'critical' ? 'Высокая' : 'Средняя'}</td></tr>
+            <tr><td>Нарушение микроклимата</td><td>${metricData.title.includes("Температура") ? 'Высокая' : 'Средняя'}</td></tr>
+            <tr><td>Повышенная плотность посадки</td><td>Низкая</td></tr>
+            <tr><td>Ошибки системы поения</td><td>Низкая</td></tr>
+          </tbody>
+        </table>
+        
+        <!-- 11. Рекомендации системы -->
+        <h2>11. Рекомендации системы</h2>
+        <div class="recommendation-box">
+          <ul style="margin-left: 20px;">
+            ${metricData.status === 'critical' ? '<li>Критическое состояние — требуется немедленное вмешательство</li>' : ''}
+            ${metricData.problemLocations.length > 0 ? '<li>Провести контрольный анализ в проблемных зонах</li>' : ''}
+            <li>Проверить систему мониторинга и калибровку датчиков</li>
+            <li>${metricData.title.includes("Температура") ? 'Проверить систему вентиляции и охлаждения' : 'Продолжить мониторинг в штатном режиме'}</li>
+            <li>Выполнить повторный анализ через 24 часа</li>
+          </ul>
+        </div>
+        
+        <!-- 12. Производственные KPI -->
+        <h2>12. Производственные KPI</h2>
+        <table>
+          <thead><tr><th>KPI</th><th>Значение</th><th>Целевое значение</th><th>Статус</th></tr></thead>
+          <tbody>
+            <tr><td>${metricData.title}</td><td>${stats.avg.toFixed(2)}${formatUnit()}</td><td>${metricData.targetRange}</td><td class="${metricData.status === 'critical' ? 'status-critical' : 'status-normal'}">${metricData.status === 'critical' ? '⚠' : '✓'}</td></tr>
+            <tr><td>CV</td><td>${cv.toFixed(2)}%</td><td>&lt;10%</td><td class="${cv < 10 ? 'status-normal' : 'status-warning'}">${cv < 10 ? '✓' : '⚠'}</td></tr>
+            <tr><td>Однородность</td><td>${uniformity.toFixed(0)}%</td><td>&gt;85%</td><td class="${uniformity >= 85 ? 'status-normal' : 'status-warning'}">${uniformity >= 85 ? '✓' : '⚠'}</td></tr>
+          </tbody>
+        </table>
+        
+        <!-- 13. Прогноз -->
+        <h2>13. Прогноз</h2>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Ожидаемое значение через 7 дней</div><div class="stat-value">${forecastValue.toFixed(2)}${formatUnit()}</div></div>
+          <div class="stat-card"><div class="stat-label">Риск ухудшения</div><div class="stat-value ${riskClass}">${riskLevel}</div></div>
+          <div class="stat-card"><div class="stat-label">Прогноз однородности</div><div class="stat-value">${cv < 5 ? 'Стабильный' : cv < 10 ? 'Требует контроля' : 'Нестабильный'}</div></div>
+        </div>
+        
+        <!-- 14. Системная информация -->
+        <h2>14. Системная информация</h2>
+        <div class="header-info">
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Сформирован автоматически:</span><span class="info-value">Да</span></div>
+            <div class="info-item"><span class="info-label">Модуль:</span><span class="info-value">AgroControl Monitoring</span></div>
+            <div class="info-item"><span class="info-label">Источник:</span><span class="info-value">IoT</span></div>
+            <div class="info-item"><span class="info-label">Время генерации:</span><span class="info-value">&lt; 1 сек</span></div>
+            <div class="info-item"><span class="info-label">Статус данных:</span><span class="info-value">Актуальны</span></div>
           </div>
-        </body>
-      </html>
-    `
-  }
+        </div>
+        
+        <div class="footer">
+          <p>АгроКонтроль — Ситуационный центр</p>
+          <p>Отчет сформирован автоматически. Данные актуальны на момент генерации.</p>
+        </div>
+      </body>
+    </html>
+  `
+}
 
   const formatUnit = () => {
     if (metricData.title.includes("Температура")) return "°C"
