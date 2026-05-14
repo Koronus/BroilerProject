@@ -77,6 +77,12 @@ export default function DashboardPage() {
         setActiveCategory(matchedMetric.categoryId)
         setActiveMetric(matchedMetric.id)
         setShowDetailPanel(true)
+        requestAnimationFrame(() => {
+          document.getElementById("technical-detail-panel")?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          })
+        })
       }
     }
   }, [selectedAge])
@@ -148,7 +154,7 @@ export default function DashboardPage() {
             </div>
 
             {showDetailPanel && (
-              <div className="order-3">
+              <div id="technical-detail-panel" className="order-3 scroll-mt-6">
                 <DetailPanel
                   onClose={() => setShowDetailPanel(false)}
                   activeMetric={activeMetric}
