@@ -289,6 +289,14 @@ function FieldSelect({ label, options, value, onValueChange }: { label: string; 
   )
 }
 
+const incidentMetricMap: Record<string, { metricId: string; label: string }> = {
+  "INC-1": { metricId: "temperature_21_30", label: "Температура" },
+  "INC-2": { metricId: "mortality_21_30", label: "Падеж" },
+  "INC-3": { metricId: "water_intake_21_30", label: "Потребление воды" },
+  "INC-4": { metricId: "temperature_21_30", label: "Температура / вентиляция" },
+  "INC-5": { metricId: "ammonia_21_30", label: "Аммиак" },
+}
+
 function IncidentDetails({
   incident,
   onOpenDetails,
@@ -304,6 +312,8 @@ function IncidentDetails({
   onDownloadReport: (id: string) => void
   onCreateRelated: (id: string) => void
 }) {
+  const relatedMetric = incidentMetricMap[incident.id]
+
   return (
     <aside className="flex h-full min-h-0 flex-col rounded-br-[28px] border-l border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 px-5 py-4">
@@ -335,6 +345,12 @@ function IncidentDetails({
         {incident.status === "closed" && (
           <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
             <p className="font-medium">Статус: Закрыт{incident.closedAt ? ` (${incident.closedAt})` : ""}</p>
+          </section>
+        )}
+        {relatedMetric && (
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="text-xs uppercase tracking-wide text-amber-700">Связанный график</p>
+            <p className="mt-1 font-medium">{relatedMetric.label}</p>
           </section>
         )}
         <section>
