@@ -1,5 +1,8 @@
 package com.broiler_monitoring.Telemetry;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "Тип датчика или измеряемого показателя")
 public enum SensorType {
     TEMPERATURE,
     HUMIDITY,
