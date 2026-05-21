@@ -37,7 +37,7 @@ services:
       - ./backend/broiler_monitoring:/app
       - maven_cache:/root/.m2
       - backend_target:/app/target
-    command: mvn -DskipTests spring-boot:run
+    command: mvn -Dmaven.repo.local=/root/.m2/repository-clean -DskipTests spring-boot:run
     networks:
       - broiler-network
 
@@ -48,7 +48,7 @@ services:
     depends_on:
       - backend
     environment:
-      SPRING_API_URL: http://backend:8080
+      SPRING_API_URL: http://130.193.41.107:8081
       NODE_ENV: production
     ports:
       - "3000:3000"
