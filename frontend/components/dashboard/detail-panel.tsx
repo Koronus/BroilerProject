@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { AlertTriangle, ClipboardPlus, FileText, X } from "lucide-react"
+import { FullChartModal } from "./full-chart-modal"
 import {
   Area,
   AreaChart,
@@ -18,6 +19,7 @@ import { CreateTaskModal } from "./create-task-modal"
 import { ReportsModal } from "./reports-modal"
 import { type BirdAgeGroup } from "@/components/dashboard/kpi-grid"
 import { workshops, poultryHouses, batches, ageRangeOptions } from "@/lib/production-filters"
+import { GrafanaStyleChart } from "./grafana-style-chart"
 
 interface DetailPanelProps {
   onClose: () => void
@@ -93,6 +95,9 @@ export function DetailPanel({
 }: DetailPanelProps) {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false)
+  const [isChartModalOpen, setIsChartModalOpen] = useState(false)
+  const [chartType, setChartType] = useState<"area" | "line" | "bar">("area")
+  //const metricData = metricsDetails[activeMetric]
   const [liveReading, setLiveReading] = useState<TelemetryReading | null>(null)
   let metricData = metricsDetails[activeMetric]
 
@@ -330,7 +335,7 @@ const generateFullReportHTML = () => {
             margin-bottom: 10px; 
             padding-left: 12px;
             font-size: 14pt;
-            background: #f8fafc;
+            
           }
           h3 { 
             color: #475569; 
@@ -365,8 +370,6 @@ const generateFullReportHTML = () => {
             color: #1e293b;
           }
           .status-summary {
-            background: #f0fdf4;
-            border-left: 4px solid #10b981;
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 20px;
@@ -756,169 +759,180 @@ const generateFullReportHTML = () => {
     return [`${value}`, metricData.title]
   }
 
-  return (
-    <>
-      <aside className="dashboard-panel p-5 md:p-6">
-        {/* ... остальной JSX (без изменений) ... */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
-              Детализация
-            </p>
-            <h2 className="mt-2 break-words text-xl font-semibold text-zinc-950 dark:text-zinc-50">
-              {metricData.title}
-            </h2>
+return (
+  <>
+    <aside className="dashboard-panel p-5 md:p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
+            Детализация
+          </p>
+          <h2 className="mt-2 break-words text-xl font-semibold text-zinc-950 dark:text-zinc-50">
+            {metricData.title}
+          </h2>
+        </div>
+        <button
+          onClick={onClose}
+          className="rounded-full border border-black/5 p-2 text-zinc-500 transition hover:bg-black/5 dark:border-white/10 dark:text-zinc-400 dark:hover:bg-white/8"
+          aria-label="Закрыть панель"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+        <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+            Текущее значение
+          </p>
+          <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50 whitespace-nowrap overflow-x-auto">
+            {metricData.currentValue}
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-full border border-black/5 p-2 text-zinc-500 transition hover:bg-black/5 dark:border-white/10 dark:text-zinc-400 dark:hover:bg-white/8"
-            aria-label="Закрыть панель"
-          >
-            <X className="size-4" />
-          </button>
+          <Badge className={`mt-3 border ${getStatusColor(metricData.status)}`}>
+            {getStatusText(metricData.status)}
+          </Badge>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-          <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-              Текущее значение
-            </p>
-            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
-              {metricData.currentValue}
-            </div>
-            <Badge className={`mt-3 border ${getStatusColor(metricData.status)}`}>
-              {getStatusText(metricData.status)}
-            </Badge>
+        <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+            Целевой диапазон
+          </p>
+          <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50 whitespace-nowrap -ml-3">
+            {metricData.targetRange}
           </div>
-
-          <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-              Целевой диапазон
-            </p>
-            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
-              {metricData.targetRange}
-            </div>
-            <Badge className="mt-3 border border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
-              Норма
-            </Badge>
-          </div>
+          <Badge className="mt-3 border border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
+            Норма
+          </Badge>
         </div>
+      </div>
 
-        <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 7 дней</h3>
-          <div className="mt-4 h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={metricData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="detailMetric" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={getChartColor(metricData.status)} stopOpacity={0.28} />
-                    <stop offset="95%" stopColor={getChartColor(metricData.status)} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(113,113,122,0.16)" vertical={false} />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={formatYAxis} domain={["auto", "auto"]} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "rgba(255,255,255,0.96)",
-                    border: "1px solid rgba(0,0,0,0.06)",
-                    borderRadius: "16px",
-                    color: "#18181b",
-                  }}
-                  formatter={formatTooltip}
-                  labelStyle={{ color: "#71717a" }}
-                />
-                <Area type="monotone" dataKey="value" stroke={getChartColor(metricData.status)} strokeWidth={2.5} fillOpacity={1} fill="url(#detailMetric)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
-          <div className="mt-4 space-y-3">
-            {metricData.problemLocations.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-zinc-500 dark:border-white/10 dark:text-zinc-400">
-                Отклонений по локациям не найдено.
-              </div>
-            ) : (
-              metricData.problemLocations.map((location) => (
-                <div
-                  key={location.name}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 px-4 py-4 dark:border-white/8"
-                >
-                  <span className="min-w-0 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">{location.name}</span>
-                  <div className="flex items-center gap-2">
-                    <span className={location.status === "critical" ? "text-sm font-semibold text-red-600 dark:text-red-300" : "text-sm font-semibold text-amber-600 dark:text-amber-300"}>
-                      {location.value}
-                    </span>
-                    <Badge
-                      className={
-                        location.status === "critical"
-                          ? "border border-red-500/20 bg-red-500/12 text-red-600 dark:text-red-300"
-                          : "border border-amber-500/20 bg-amber-500/12 text-amber-600 dark:text-amber-300"
-                      }
-                    >
-                      {location.status === "critical" ? "Критично" : "Внимание"}
-                    </Badge>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {metricData.relatedIncident && (
-          <div className="mt-5 rounded-[24px] border border-amber-500/20 bg-amber-500/8 p-5">
-            <div className="flex gap-3">
-              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
-              <div>
-                <h4 className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                  {metricData.relatedIncident.title}
-                </h4>
-                <p className="mt-1 text-sm text-amber-700/80 dark:text-amber-200/85">
-                  {metricData.relatedIncident.description}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Кнопки */}
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={() => setIsReportsModalOpen(true)}
-            className="rounded-full border-black/10 bg-white/80 text-zinc-700 hover:bg-white dark:border-white/10 dark:bg-white/4 dark:text-zinc-200 dark:hover:bg-white/8"
-          >
-            <FileText className="size-4" />
-            Отчеты
-          </Button>
-          <Button 
-            onClick={() => setIsTaskModalOpen(true)}
-            className="rounded-full bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
-          >
-            <ClipboardPlus className="size-4" />
-            Создать задачу
-          </Button>
-        </div>
-      </aside>
-
-      <ReportsModal
-        isOpen={isReportsModalOpen}
-        onClose={() => setIsReportsModalOpen(false)}
-        onFullReport={handleFullReport}
-        onPDFReport={handlePDFReport}
+      <GrafanaStyleChart
+        title={metricData.title}
+        data={metricData.chartData}
+        dataKey="value"
+        xAxisKey="time"
+        unit={formatUnit()}
+        color={getChartColor(metricData.status)}
+        onExpand={() => setIsChartModalOpen(true)}
+       
         
       />
 
-      <CreateTaskModal
-        isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
-        metricTitle={metricData.title}
-        metricId={activeMetric}
-        currentValue={metricData.currentValue}
-      />
-    </>
-  )
+      <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
+        <div className="mt-4 space-y-3">
+          {metricData.problemLocations.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-zinc-500 dark:border-white/10 dark:text-zinc-400">
+              Отклонений по локациям не найдено.
+            </div>
+          ) : (
+            metricData.problemLocations.map((location) => (
+              <div
+                key={location.name}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 px-4 py-4 dark:border-white/8"
+              >
+                <span className="min-w-0 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">{location.name}</span>
+                <div className="flex items-center gap-2">
+                  <span className={location.status === "critical" ? "text-sm font-semibold text-red-600 dark:text-red-300" : "text-sm font-semibold text-amber-600 dark:text-amber-300"}>
+                    {location.value}
+                  </span>
+                  <Badge
+                    className={
+                      location.status === "critical"
+                        ? "border border-red-500/20 bg-red-500/12 text-red-600 dark:text-red-300"
+                        : "border border-amber-500/20 bg-amber-500/12 text-amber-600 dark:text-amber-300"
+                    }
+                  >
+                    {location.status === "critical" ? "Критично" : "Внимание"}
+                  </Badge>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {metricData.relatedIncident && (
+        <div className="mt-5 rounded-[24px] border border-amber-500/20 bg-amber-500/8 p-5">
+          <div className="flex gap-3">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
+            <div>
+              <h4 className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                {metricData.relatedIncident.title}
+              </h4>
+              <p className="mt-1 text-sm text-amber-700/80 dark:text-amber-200/85">
+                {metricData.relatedIncident.description}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Кнопки */}
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <Button
+          variant="outline"
+          onClick={() => setIsReportsModalOpen(true)}
+          className="rounded-full border-black/10 bg-white/80 text-zinc-700 hover:bg-white dark:border-white/10 dark:bg-white/4 dark:text-zinc-200 dark:hover:bg-white/8"
+        >
+          <FileText className="size-4" />
+          Отчеты
+        </Button>
+        <Button 
+          onClick={() => setIsTaskModalOpen(true)}
+          className="rounded-full bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+        >
+          <ClipboardPlus className="size-4" />
+          Создать задачу
+        </Button>
+      </div>
+    </aside>
+
+    <ReportsModal
+      isOpen={isReportsModalOpen}
+      onClose={() => setIsReportsModalOpen(false)}
+      onFullReport={handleFullReport}
+      onPDFReport={handlePDFReport}
+    />
+
+    <CreateTaskModal
+      isOpen={isTaskModalOpen}
+      onClose={() => setIsTaskModalOpen(false)}
+      metricTitle={metricData.title}
+      metricId={activeMetric}
+      currentValue={metricData.currentValue}
+    />
+
+    {/* Модальное окно для увеличенного графика */}
+    <FullChartModal
+      isOpen={isChartModalOpen}
+      onClose={() => setIsChartModalOpen(false)}
+      title={metricData.title}
+      data={metricData.chartData}
+      dataKey="value"
+      xAxisKey="time"
+      unit={formatUnit()}
+      color={getChartColor(metricData.status)}
+      chartType={chartType}
+      onChartTypeChange={(type: string) => setChartType(type as "area" | "line" | "bar")}
+    />
+  </>
+)
 }
+//       </aside>
+
+//       <ReportsModal
+//         isOpen={isReportsModalOpen}
+//         onClose={() => setIsReportsModalOpen(false)}
+//         onFullReport={handleFullReport}
+//         onPDFReport={handlePDFReport}
+        
+//       />
+
+//       <CreateTaskModal
+//         isOpen={isTaskModalOpen}
+//         onClose={() => setIsTaskModalOpen(false)}
+//         metricTitle={metricData.title}
+//         metricId={activeMetric}
+//         currentValue={metricData.currentValue}
+//       />
