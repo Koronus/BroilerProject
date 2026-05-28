@@ -49,6 +49,20 @@ export function GrafanaStyleChart({
   const [showGrid, setShowGrid] = useState(true)
   const [showTooltip, setShowTooltip] = useState(true)
 
+  // Функция для форматирования значения с нужным количеством знаков
+  const formatValue = (value: number) => {
+    // Для влажности и процентов - 2 знака
+    if (unit === "%" || title.toLowerCase().includes("влажность")) {
+      return value.toFixed(2)
+    }
+    // Для температуры - 1 знак
+    if (unit === "°C" || title.toLowerCase().includes("температура")) {
+      return value.toFixed(1)
+    }
+    // Для остальных - 2 знака
+    return value.toFixed(2)
+  }
+
   // Разделяем данные на сегменты для отрисовки разными цветами
   const coloredSegments = useMemo(() => {
     if (!data || data.length === 0 || targetMin === undefined || targetMax === undefined) {
@@ -69,7 +83,6 @@ export function GrafanaStyleChart({
       } else if (currentIsOutlier === isOutlier) {
         currentSegment.push(point)
       } else {
-        // Сохраняем текущий сегмент
         if (currentSegment.length > 0) {
           segments.push({
             data: [...currentSegment],
@@ -77,13 +90,11 @@ export function GrafanaStyleChart({
             isOutlier: currentIsOutlier,
           })
         }
-        // Начинаем новый сегмент
         currentSegment = [point]
         currentIsOutlier = isOutlier
       }
     })
 
-    // Добавляем последний сегмент
     if (currentSegment.length > 0) {
       segments.push({
         data: [...currentSegment],
@@ -164,6 +175,16 @@ export function GrafanaStyleChart({
     })
   }
 
+  // Форматтер для оси Y
+  const yAxisTickFormatter = (value: number) => {
+    return `${formatValue(value)}${unit}`
+  }
+
+  // Форматтер для Tooltip
+  const tooltipFormatter = (value: any) => {
+    return [`${formatValue(value)}${unit}`, title]
+  }
+
   const renderChart = () => {
     const commonProps = {
       margin: { top: 10, right: 10, left: 0, bottom: 0 },
@@ -187,11 +208,11 @@ export function GrafanaStyleChart({
             <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 11 }} />
             <YAxis 
               tick={{ fill: "#64748b", fontSize: 11 }} 
-              tickFormatter={(value) => `${value}${unit}`}
+              tickFormatter={yAxisTickFormatter}
               domain={['auto', 'auto']}
               tickCount={8}
             />
-            {showTooltip && <Tooltip contentStyle={{ backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0" }} formatter={(value: any) => [`${value}${unit}`, title]} />}
+            {showTooltip && <Tooltip contentStyle={{ backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0" }} formatter={tooltipFormatter} />}
             {showLegend && <Legend wrapperStyle={{ fontSize: "11px" }} />}
             
             <NormalRangeBand />
@@ -205,11 +226,11 @@ export function GrafanaStyleChart({
             <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 11 }} />
             <YAxis 
               tick={{ fill: "#64748b", fontSize: 11 }} 
-              tickFormatter={(value) => `${value}${unit}`}
+              tickFormatter={yAxisTickFormatter}
               domain={['auto', 'auto']}
               tickCount={8}
             />
-            {showTooltip && <Tooltip contentStyle={{ backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0" }} formatter={(value: any) => [`${value}${unit}`, title]} />}
+            {showTooltip && <Tooltip contentStyle={{ backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0" }} formatter={tooltipFormatter} />}
             {showLegend && <Legend />}
             
             <NormalRangeBand />
@@ -223,11 +244,11 @@ export function GrafanaStyleChart({
             <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 11 }} />
             <YAxis 
               tick={{ fill: "#64748b", fontSize: 11 }} 
-              tickFormatter={(value) => `${value}${unit}`}
+              tickFormatter={yAxisTickFormatter}
               domain={['auto', 'auto']}
               tickCount={8}
             />
-            {showTooltip && <Tooltip contentStyle={{ backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0" }} formatter={(value: any) => [`${value}${unit}`, title]} />}
+            {showTooltip && <Tooltip contentStyle={{ backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0" }} formatter={tooltipFormatter} />}
             {showLegend && <Legend />}
             
             <NormalRangeBand />
@@ -251,11 +272,11 @@ export function GrafanaStyleChart({
             <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 11 }} />
             <YAxis 
               tick={{ fill: "#64748b", fontSize: 11 }} 
-              tickFormatter={(value) => `${value}${unit}`}
+              tickFormatter={yAxisTickFormatter}
               domain={['auto', 'auto']}
               tickCount={8}
             />
-            {showTooltip && <Tooltip contentStyle={{ backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0" }} formatter={(value: any) => [`${value}${unit}`, title]} />}
+            {showTooltip && <Tooltip contentStyle={{ backgroundColor: "#fff", borderRadius: "8px", border: "1px solid #e2e8f0" }} formatter={tooltipFormatter} />}
             {showLegend && <Legend />}
             
             <NormalRangeBand />
@@ -274,16 +295,6 @@ export function GrafanaStyleChart({
         </div>
         
         <div className="flex items-center gap-2">
-          {/* <select
-            value={chartType}
-            onChange={(e) => setChartType(e.target.value as ChartType)}
-            className="text-xs border border-zinc-300 rounded px-2 py-1 bg-white"
-          >
-            <option value="area">Область</option>
-            <option value="line">Линия</option>
-            <option value="bar">Столбцы</option>
-          </select> */}
-          
           <button 
             onClick={() => onExpand?.()} 
             className="p-1.5 rounded hover:bg-zinc-200 transition-colors"

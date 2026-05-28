@@ -43,6 +43,20 @@ export function FullChartModal({
 }: FullChartModalProps) {
   if (!isOpen) return null
 
+  // Функция для форматирования значения с нужным количеством знаков
+  const formatValue = (value: number) => {
+    // Для влажности и процентов - 2 знака
+    if (unit === "%" || title.toLowerCase().includes("влажность")) {
+      return value.toFixed(2)
+    }
+    // Для температуры - 1 знак
+    if (unit === "°C" || title.toLowerCase().includes("температура")) {
+      return value.toFixed(1)
+    }
+    // Для остальных - 2 знака
+    return value.toFixed(2)
+  }
+
   // Вычисляем динамические ticks на основе данных
   const getDynamicTicks = () => {
     if (!data || data.length === 0) return undefined
@@ -56,6 +70,16 @@ export function FullChartModal({
       ticks.push(+(min + i * step).toFixed(1))
     }
     return ticks
+  }
+
+  // Форматтер для оси Y
+  const yAxisTickFormatter = (value: number) => {
+    return `${formatValue(value)}${unit}`
+  }
+
+  // Форматтер для Tooltip
+  const tooltipFormatter = (value: any) => {
+    return [`${formatValue(value)}${unit}`, title]
   }
 
   const renderChart = () => {
@@ -72,11 +96,11 @@ export function FullChartModal({
             <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 12 }} />
             <YAxis 
               tick={{ fill: "#64748b", fontSize: 12 }} 
-              tickFormatter={(value) => `${value}${unit}`}
+              tickFormatter={yAxisTickFormatter}
               domain={['auto', 'auto']}
               ticks={getDynamicTicks()}
             />
-            <Tooltip formatter={(value: any) => [`${value}${unit}`, title]} />
+            <Tooltip formatter={tooltipFormatter} />
             <Legend />
             <Area type="linear" dataKey={dataKey} stroke={color} fill={`${color}20`} strokeWidth={3} />
           </AreaChart>
@@ -88,11 +112,11 @@ export function FullChartModal({
             <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 12 }} />
             <YAxis 
               tick={{ fill: "#64748b", fontSize: 12 }} 
-              tickFormatter={(value) => `${value}${unit}`}
+              tickFormatter={yAxisTickFormatter}
               domain={['auto', 'auto']}
               ticks={getDynamicTicks()}
             />
-            <Tooltip formatter={(value: any) => [`${value}${unit}`, title]} />
+            <Tooltip formatter={tooltipFormatter} />
             <Legend />
             <Line type="linear" dataKey={dataKey} stroke={color} strokeWidth={3} dot={{ r: 4 }} />
           </LineChart>
@@ -104,11 +128,11 @@ export function FullChartModal({
             <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 12 }} />
             <YAxis 
               tick={{ fill: "#64748b", fontSize: 12 }} 
-              tickFormatter={(value) => `${value}${unit}`}
+              tickFormatter={yAxisTickFormatter}
               domain={['auto', 'auto']}
               ticks={getDynamicTicks()}
             />
-            <Tooltip formatter={(value: any) => [`${value}${unit}`, title]} />
+            <Tooltip formatter={tooltipFormatter} />
             <Legend />
             <Bar dataKey={dataKey} fill={color} radius={[4, 4, 0, 0]} />
           </BarChart>
@@ -120,13 +144,13 @@ export function FullChartModal({
             <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 12 }} />
             <YAxis 
               tick={{ fill: "#64748b", fontSize: 12 }} 
-              tickFormatter={(value) => `${value}${unit}`}
+              tickFormatter={yAxisTickFormatter}
               domain={['auto', 'auto']}
               ticks={getDynamicTicks()}
             />
-            <Tooltip formatter={(value: any) => [`${value}${unit}`, title]} />
+            <Tooltip formatter={tooltipFormatter} />
             <Legend />
-            <Area type="monotone" dataKey={dataKey} stroke={color} fill={`${color}20`} strokeWidth={3} />
+            <Area type="linear" dataKey={dataKey} stroke={color} fill={`${color}20`} strokeWidth={3} />
           </AreaChart>
         )
     }
@@ -160,11 +184,6 @@ export function FullChartModal({
             {renderChart()}
           </ResponsiveContainer>
         </div>
-
-        {/* <div className="px-6 py-3 border-t border-zinc-200 bg-zinc-50 text-sm text-zinc-500 flex justify-between">
-          <span>Всего точек: {data.length}</span>
-          <span>Единица измерения: {unit}</span>
-        </div> */}
       </div>
     </div>
   )
