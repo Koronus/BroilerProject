@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AlertTriangle, ClipboardPlus, FileText, X } from "lucide-react"
 import {
   Area,
@@ -30,6 +30,57 @@ interface DetailPanelProps {
   selectedAgeRangeId?: string
 }
 
+interface TelemetryReading {
+  sensorCode: string
+  value: number
+  unit: string
+  measuredAt: string
+}
+
+const sensorCodeByMetricId: Record<string, string> = {
+  temperature_0_3: "TEMP-HOUSE-4-01",
+  temperature_21_30: "TEMP-HOUSE-4-01",
+  humidity_0_3: "HUM-HOUSE-4-01",
+  humidity_21_30: "HUM-HOUSE-4-01",
+  ammonia_0_3: "AMMONIA-HOUSE-4-01",
+  ammonia_21_30: "AMMONIA-HOUSE-4-01",
+  feed_intake_0_3: "FEED-HOUSE-4-01",
+  feed_intake_21_30: "FEED-HOUSE-4-01",
+  water_intake_0_3: "WATER-HOUSE-4-01",
+  water_intake_21_30: "WATER-HOUSE-4-01",
+}
+
+const normalRangesBySensorCode: Record<string, { min?: number; max?: number; criticalMin?: number; criticalMax?: number }> = {
+  "TEMP-HOUSE-4-01": { min: 32, max: 34, criticalMin: 30, criticalMax: 36 },
+  "HUM-HOUSE-4-01": { min: 50, max: 65, criticalMin: 40, criticalMax: 75 },
+  "AMMONIA-HOUSE-4-01": { min: 0, max: 10, criticalMax: 13 },
+  "FEED-HOUSE-4-01": { min: 35, max: 80, criticalMax: 105 },
+  "WATER-HOUSE-4-01": { min: 8, max: 18, criticalMax: 24 },
+}
+
+const formatTelemetryValue = (reading: TelemetryReading) => {
+  const formattedValue = new Intl.NumberFormat("ru-RU", {
+    maximumFractionDigits: reading.value >= 100 ? 0 : 1,
+  }).format(reading.value)
+
+  if (reading.unit === "C") return `${formattedValue}°C`
+  if (reading.unit === "%") return `${formattedValue}%`
+
+  return `${formattedValue} ${reading.unit}`
+}
+
+const resolveTelemetryStatus = (sensorCode: string, value: number): "normal" | "warning" | "critical" => {
+  const range = normalRangesBySensorCode[sensorCode]
+  if (!range) return "normal"
+
+  if (range.criticalMin !== undefined && value < range.criticalMin) return "critical"
+  if (range.criticalMax !== undefined && value > range.criticalMax) return "critical"
+  if (range.min !== undefined && value < range.min) return "warning"
+  if (range.max !== undefined && value > range.max) return "warning"
+
+  return "normal"
+}
+
 export function DetailPanel({ 
   onClose, 
   activeMetric,
@@ -42,7 +93,48 @@ export function DetailPanel({
 }: DetailPanelProps) {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false)
-  const metricData = metricsDetails[activeMetric]
+  const [liveReading, setLiveReading] = useState<TelemetryReading | null>(null)
+  let metricData = metricsDetails[activeMetric]
+
+  useEffect(() => {
+    let mounted = true
+    const sensorCode = sensorCodeByMetricId[activeMetric]
+
+    const loadTelemetry = async () => {
+      if (!sensorCode) {
+        if (mounted) setLiveReading(null)
+        return
+      }
+
+      try {
+        const response = await fetch(
+          `/api/telemetry/readings?sensorCode=${encodeURIComponent(sensorCode)}&limit=1`,
+          { cache: "no-store" }
+        )
+
+        if (!response.ok) {
+          throw new Error("Telemetry request failed")
+        }
+
+        const readings = (await response.json()) as TelemetryReading[]
+        if (mounted) {
+          setLiveReading(readings[0] ?? null)
+        }
+      } catch {
+        if (mounted) {
+          setLiveReading(null)
+        }
+      }
+    }
+
+    loadTelemetry()
+    const intervalId = window.setInterval(loadTelemetry, 60_000)
+
+    return () => {
+      mounted = false
+      window.clearInterval(intervalId)
+    }
+  }, [activeMetric])
 
   if (!metricData) {
     return (
@@ -61,6 +153,19 @@ export function DetailPanel({
         <p className="mt-8 text-sm text-zinc-500 dark:text-zinc-400">Данные не найдены</p>
       </aside>
     )
+  }
+
+  const liveSensorCode = sensorCodeByMetricId[activeMetric]
+  const currentLiveReading = liveReading?.sensorCode === liveSensorCode ? liveReading : null
+  const currentValue = currentLiveReading ? formatTelemetryValue(currentLiveReading) : metricData.currentValue
+  const currentStatus = currentLiveReading && liveSensorCode
+    ? resolveTelemetryStatus(liveSensorCode, currentLiveReading.value)
+    : metricData.status
+
+  metricData = {
+    ...metricData,
+    currentValue,
+    status: currentStatus,
   }
 
   // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ФИЛЬТРОВ ==========
