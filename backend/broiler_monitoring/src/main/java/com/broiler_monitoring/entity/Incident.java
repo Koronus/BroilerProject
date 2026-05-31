@@ -4,6 +4,7 @@ package com.broiler_monitoring.entity;
 import com.broiler_monitoring.enumerated.IncidentPriority;
 import com.broiler_monitoring.enumerated.IncidentSource;
 import com.broiler_monitoring.enumerated.IncidentStatus;
+import com.broiler_monitoring.enumerated.IncidentType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -51,6 +52,17 @@ public class Incident {
     @Column(nullable = false)
     private IncidentSource source;
 
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "incident_type", nullable = false)
+    private IncidentType type;
+
+    private String workshop;
+
+    private String house;
+
+    private String zone;
+
     private UUID notificationId;
 
     private String responsible;
@@ -72,6 +84,15 @@ public class Incident {
         updatedAt = LocalDateTime.now();
         if (status==null){
             status = IncidentStatus.OPEN;
+        }
+        if (source==null){
+            source = IncidentSource.MANUAL;
+        }
+        if (priority==null){
+            priority = IncidentPriority.MEDIUM;
+        }
+        if (type==null){
+            type = IncidentType.OTHER;
         }
         if (detectedAt==null)
             detectedAt = LocalDateTime.now();

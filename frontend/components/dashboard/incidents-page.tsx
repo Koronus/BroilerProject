@@ -27,6 +27,11 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
@@ -34,12 +39,39 @@ import { cn } from "@/lib/utils"
 
 type IncidentPriority = "critical" | "high" | "medium" | "low"
 type IncidentStatus = "new" | "inProgress" | "overdue" | "closed"
+type IncidentType =
+  | "microclimate"
+  | "sanitation"
+  | "flockHealth"
+  | "feeding"
+  | "waterSupply"
+  | "productionMetrics"
+  | "other"
+
+interface SelectOption {
+  value: string
+  label: string
+}
+
+interface IncidentFormState {
+  type: IncidentType
+  workshop: string
+  house: string
+  zone: string
+  priority: IncidentPriority
+  description: string
+  responsible: string
+}
 
 interface BackendIncident {
   id: string
   code?: string | null
   title: string
   description?: string | null
+  type?: string | null
+  workshop?: string | null
+  house?: string | null
+  zone?: string | null
   status: string
   priority: string
   source: string
@@ -116,6 +148,26 @@ const backendStatusMap: Record<string, IncidentStatus> = {
   CANCELLED: "closed",
 }
 
+const backendIncidentTypeLabelMap: Record<string, string> = {
+  MICROCLIMATE: "Микроклимат",
+  SANITATION: "Санитария",
+  FLOCK_HEALTH: "Падеж и состояние стада",
+  FEEDING: "Кормление",
+  WATER_SUPPLY: "Водоснабжение",
+  PRODUCTION_METRICS: "Производственные показатели",
+  OTHER: "Прочее",
+}
+
+const backendIncidentTypeIconMap: Record<string, LucideIcon> = {
+  MICROCLIMATE: Thermometer,
+  SANITATION: ShieldAlert,
+  FLOCK_HEALTH: ShieldAlert,
+  FEEDING: Wrench,
+  WATER_SUPPLY: Droplets,
+  PRODUCTION_METRICS: Wrench,
+  OTHER: AlertTriangle,
+}
+
 const backendSourceLabelMap: Record<string, string> = {
   NOTIFICATION: "Уведомление",
   MANUAL: "Ручной",
@@ -130,7 +182,60 @@ const backendSourceIconMap: Record<string, LucideIcon> = {
   ANALYTICS: ShieldAlert,
 }
 
+const incidentTypeOptions: SelectOption[] = [
+  { value: "microclimate", label: "Микроклимат" },
+  { value: "sanitation", label: "Санитария" },
+  { value: "flockHealth", label: "Падеж и состояние стада" },
+  { value: "feeding", label: "Кормление" },
+  { value: "waterSupply", label: "Водоснабжение" },
+  { value: "productionMetrics", label: "Производственные показатели" },
+  { value: "other", label: "Прочее" },
+]
+
+const workshopOptions = ["Цех 1", "Цех 2", "Цех 3"]
+const houseOptions = ["Птичник 1", "Птичник 2", "Птичник 3"]
+const zoneOptions = ["Линия поения 1", "Линия поения 2"]
+
+const responsibleOptions = [
+  "Главный ветеринарный врач",
+  "Главный зоотехник",
+  "Главный инженер",
+  "Директор по качеству",
+  "Системный администратор",
+  "Руководитель комплекса",
+  "Служба безопасности",
+  "Оператор цеха (птичница)",
+]
+
+const emptyIncidentForm: IncidentFormState = {
+  type: "microclimate",
+  workshop: workshopOptions[0],
+  house: houseOptions[0],
+  zone: zoneOptions[0],
+  priority: "medium",
+  description: "",
+  responsible: responsibleOptions[0],
+}
+
+const incidentTypeMap: Record<IncidentType, string> = {
+  microclimate: "MICROCLIMATE",
+  sanitation: "SANITATION",
+  flockHealth: "FLOCK_HEALTH",
+  feeding: "FEEDING",
+  waterSupply: "WATER_SUPPLY",
+  productionMetrics: "PRODUCTION_METRICS",
+  other: "OTHER",
+}
+
+const incidentPriorityMap: Record<IncidentPriority, string> = {
+  critical: "CRITICAL",
+  high: "HIGH",
+  medium: "MEDIUM",
+  low: "LOW",
+}
+
 const unknownValue = "—"
+const incidentRefreshIntervalMs = 10_000
 
 const normalizeBackendEnum = (value?: string | null) => value?.toUpperCase() ?? ""
 
@@ -163,6 +268,8 @@ const resolveLocation = (code?: string | null) => {
 
 const toIncident = (incident: BackendIncident): Incident => {
   const source = normalizeBackendEnum(incident.source)
+  const type = normalizeBackendEnum(incident.type)
+  const hasSpecificType = Boolean(type && type !== "OTHER")
   const { date, time } = formatBackendDateTime(incident.detectedAt ?? incident.createdAt)
   const id = incident.code ?? incident.id
   const location = resolveLocation(id)
@@ -171,8 +278,16 @@ const toIncident = (incident: BackendIncident): Incident => {
     id,
     date,
     time,
-    type: backendSourceLabelMap[source] ?? "Инцидент",
-    icon: backendSourceIconMap[source] ?? AlertTriangle,
+    type: hasSpecificType
+      ? backendIncidentTypeLabelMap[type] ?? "Инцидент"
+      : source === "MANUAL"
+        ? backendIncidentTypeLabelMap[type] ?? "Прочее"
+        : backendSourceLabelMap[source] ?? backendIncidentTypeLabelMap[type] ?? "Инцидент",
+    icon: hasSpecificType
+      ? backendIncidentTypeIconMap[type] ?? AlertTriangle
+      : source === "MANUAL"
+        ? backendIncidentTypeIconMap[type] ?? AlertTriangle
+        : backendSourceIconMap[source] ?? backendIncidentTypeIconMap[type] ?? AlertTriangle,
     shortDescription: incident.title,
     description: incident.description ?? "Описание не указано.",
     workshop: location.workshop,
@@ -439,16 +554,19 @@ export function IncidentsPage() {
 
   useEffect(() => {
     let isCancelled = false
+    let hasCompletedInitialLoad = false
 
     async function loadIncidents() {
-      setIsLoading(true)
+      if (!hasCompletedInitialLoad) {
+        setIsLoading(true)
+      }
 
       try {
         const response = await fetch("/api/incidents", { cache: "no-store" })
         if (!response.ok) throw new Error(`Backend returned ${response.status}`)
 
         const data = (await response.json()) as BackendIncident[]
-        const nextIncidents = data.map(toIncident)
+        const nextIncidents = sortIncidents(data.map(toIncident))
 
         if (!isCancelled) {
           setIncidents(nextIncidents.length > 0 ? nextIncidents : fallbackIncidents)
@@ -465,9 +583,13 @@ export function IncidentsPage() {
     }
 
     void loadIncidents()
+    const intervalId = window.setInterval(() => {
+      void loadIncidents()
+    }, incidentRefreshIntervalMs)
 
     return () => {
       isCancelled = true
+      window.clearInterval(intervalId)
     }
   }, [])
 
@@ -602,6 +724,76 @@ export function IncidentsPage() {
     setNewHouse(sourceIncident.poultryHouse)
     setNewDescription(`Связан с ${id}: продолжение кейса.`)
     setIsCreateOpen(true)
+  }
+
+  const openCreateIncidentDialog = () => {
+    setIncidentForm(emptyIncidentForm)
+    setCreateIncidentError(null)
+    setIsCreateDialogOpen(true)
+  }
+
+  const closeCreateIncidentDialog = () => {
+    setIsCreateDialogOpen(false)
+    setCreateIncidentError(null)
+    setIncidentForm(emptyIncidentForm)
+  }
+
+  const updateIncidentForm = <Key extends keyof IncidentFormState>(
+    key: Key,
+    value: IncidentFormState[Key],
+  ) => {
+    setIncidentForm((currentForm) => ({
+      ...currentForm,
+      [key]: value,
+    }))
+  }
+
+  const handleCreateIncident = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (isCreatingIncident) {
+      return
+    }
+
+    setIsCreatingIncident(true)
+    setCreateIncidentError(null)
+
+    try {
+      const response = await fetch("/api/incidents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: incidentTypeMap[incidentForm.type],
+          workshop: incidentForm.workshop,
+          house: incidentForm.house,
+          zone: incidentForm.zone,
+          priority: incidentPriorityMap[incidentForm.priority],
+          description: incidentForm.description.trim(),
+          responsible: incidentForm.responsible.trim() || null,
+        }),
+      })
+      const responseBody = await response.text()
+
+      if (!response.ok) {
+        throw new Error(responseBody || "Не удалось создать инцидент")
+      }
+
+      const createdIncident = JSON.parse(responseBody) as BackendIncident
+      const nextIncident = toIncident(createdIncident)
+
+      setIncidents((currentIncidents) => [nextIncident, ...currentIncidents])
+      setActiveIncidentId(nextIncident.id)
+      setLoadError(null)
+      closeCreateIncidentDialog()
+    } catch (error) {
+      setCreateIncidentError(
+        error instanceof Error ? error.message : "Не удалось создать инцидент",
+      )
+    } finally {
+      setIsCreatingIncident(false)
+    }
   }
 
   return (
@@ -882,5 +1074,182 @@ export function IncidentsPage() {
         </SheetContent>
       </Sheet>
     </main>
+
+    <Dialog
+      open={isCreateDialogOpen}
+      onOpenChange={(open) => {
+        if (!open && !isCreatingIncident) {
+          closeCreateIncidentDialog()
+        }
+      }}
+    >
+      <DialogContent className="max-h-[90vh] max-w-[min(760px,calc(100%-2rem))] overflow-y-auto p-0">
+        <div className="border-b border-zinc-200 px-6 py-5 pr-12">
+          <DialogTitle className="text-base font-semibold text-foreground">
+            Создать инцидент
+          </DialogTitle>
+          <p className="mt-2 text-sm text-zinc-500">
+            Заполните категорию, место возникновения и ответственного.
+          </p>
+        </div>
+
+        <form className="space-y-5 p-6" onSubmit={handleCreateIncident}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">
+                Тип
+              </span>
+              <select
+                required
+                value={incidentForm.type}
+                onChange={(event) =>
+                  updateIncidentForm("type", event.target.value as IncidentType)
+                }
+                className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition-colors hover:bg-zinc-50 focus:border-zinc-500"
+              >
+                {incidentTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">
+                Приоритет
+              </span>
+              <select
+                required
+                value={incidentForm.priority}
+                onChange={(event) =>
+                  updateIncidentForm("priority", event.target.value as IncidentPriority)
+                }
+                className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition-colors hover:bg-zinc-50 focus:border-zinc-500"
+              >
+                {Object.entries(priorityConfig).map(([value, config]) => (
+                  <option key={value} value={value}>
+                    {config.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">
+                Цех
+              </span>
+              <select
+                required
+                value={incidentForm.workshop}
+                onChange={(event) => updateIncidentForm("workshop", event.target.value)}
+                className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition-colors hover:bg-zinc-50 focus:border-zinc-500"
+              >
+                {workshopOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">
+                Птичник
+              </span>
+              <select
+                required
+                value={incidentForm.house}
+                onChange={(event) => updateIncidentForm("house", event.target.value)}
+                className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition-colors hover:bg-zinc-50 focus:border-zinc-500"
+              >
+                {houseOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs uppercase tracking-wide text-zinc-500">
+                Зона
+              </span>
+              <select
+                required
+                value={incidentForm.zone}
+                onChange={(event) => updateIncidentForm("zone", event.target.value)}
+                className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition-colors hover:bg-zinc-50 focus:border-zinc-500"
+              >
+                {zoneOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide text-zinc-500">
+              Описание
+            </span>
+            <Textarea
+              required
+              value={incidentForm.description}
+              onChange={(event) => updateIncidentForm("description", event.target.value)}
+              className="min-h-28 border-zinc-300 bg-white text-zinc-900"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs uppercase tracking-wide text-zinc-500">
+              Ответственный
+            </span>
+            <select
+              required
+              value={incidentForm.responsible}
+              onChange={(event) => updateIncidentForm("responsible", event.target.value)}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition-colors hover:bg-zinc-50 focus:border-zinc-500"
+            >
+              {responsibleOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {createIncidentError && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {createIncidentError}
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 pt-5">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isCreatingIncident}
+              onClick={closeCreateIncidentDialog}
+              className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+            >
+              Отмена
+            </Button>
+            <Button
+              type="submit"
+              disabled={isCreatingIncident}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              <ClipboardPlus className="size-4" />
+              {isCreatingIncident ? "Создание..." : "Создать инцидент"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
