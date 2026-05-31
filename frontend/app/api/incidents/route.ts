@@ -13,3 +13,19 @@ export async function GET() {
     },
   })
 }
+
+export async function POST(request: Request) {
+  const body = await request.text()
+  const response = await springApi("/api/v1/incident", {
+    method: "POST",
+    body: body || undefined,
+  })
+  const responseBody = await response.text()
+
+  return new Response(responseBody || null, {
+    status: response.status,
+    headers: {
+      "Content-Type": response.headers.get("Content-Type") ?? "application/json",
+    },
+  })
+}
