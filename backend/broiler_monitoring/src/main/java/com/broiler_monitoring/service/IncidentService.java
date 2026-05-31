@@ -6,16 +6,19 @@ import com.broiler_monitoring.entity.Notification;
 import com.broiler_monitoring.enumerated.IncidentPriority;
 import com.broiler_monitoring.enumerated.IncidentSource;
 import com.broiler_monitoring.enumerated.IncidentStatus;
+import com.broiler_monitoring.enumerated.IncidentType;
 import com.broiler_monitoring.enumerated.NotificationStatus;
 import com.broiler_monitoring.repository.IncidentRepository;
 import com.broiler_monitoring.repository.NotificationRepository;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,7 +36,7 @@ public class IncidentService {
     }
 
     public List<Incident> findAll(){
-        return repository.findAll();
+        return repository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
     public Incident getById(UUID id){
@@ -48,7 +51,24 @@ public class IncidentService {
                         HttpStatus.NOT_FOUND,
                         "Incidetn with code '%s' not found".formatted(code)));
     }
-    public Incident create(Incident incident){
+    public Incident create(Incident incidentRequest){
+        Incident request = incidentRequest != null ? incidentRequest : new Incident();
+        Incident incident = new Incident();
+
+        incident.setCode(firstNotBlank(request.getCode(), generateIncidentCode()));
+        incident.setType(request.getType() != null ? request.getType() : IncidentType.OTHER);
+        incident.setWorkshop(blankToNull(request.getWorkshop()));
+        incident.setHouse(blankToNull(request.getHouse()));
+        incident.setZone(blankToNull(request.getZone()));
+        incident.setTitle(firstNotBlank(request.getTitle(), buildIncidentTitle(incident)));
+        incident.setDescription(request.getDescription());
+        incident.setPriority(request.getPriority() != null ? request.getPriority() : IncidentPriority.MEDIUM);
+        incident.setSource(request.getSource() != null ? request.getSource() : IncidentSource.MANUAL);
+        incident.setStatus(request.getStatus() != null ? request.getStatus() : IncidentStatus.OPEN);
+        incident.setResponsible(blankToNull(request.getResponsible()));
+        incident.setDecisionComment(blankToNull(request.getDecisionComment()));
+        incident.setDetectedAt(request.getDetectedAt());
+
         return repository.save(incident);
     }
 
@@ -72,11 +92,15 @@ public class IncidentService {
         incident.setTitle(firstNotBlank(request.getTitle(), notification.getTitle()));
         incident.setDescription(firstNotBlank(request.getDescription(), notification.getDescription()));
         incident.setPriority(request.getPriority() != null ? request.getPriority() : mapNotificationPriority(notification));
+        incident.setType(request.getType() != null ? request.getType() : IncidentType.OTHER);
+        incident.setWorkshop(blankToNull(request.getWorkshop()));
+        incident.setHouse(blankToNull(request.getHouse()));
+        incident.setZone(blankToNull(request.getZone()));
         incident.setSource(IncidentSource.NOTIFICATION);
         incident.setStatus(IncidentStatus.OPEN);
         incident.setNotificationId(notification.getId());
-        incident.setResponsible(request.getResponsible());
-        incident.setDecisionComment(request.getDecisionComment());
+        incident.setResponsible(blankToNull(request.getResponsible()));
+        incident.setDecisionComment(blankToNull(request.getDecisionComment()));
         incident.setDetectedAt(request.getDetectedAt() != null ? request.getDetectedAt() : notification.getCreatedAt());
 
         notification.setStatus(NotificationStatus.INCIDENT_CREATED);
@@ -96,6 +120,12 @@ public class IncidentService {
         incident.setCode(updatedIncident.getCode());
         incident.setPriority(updatedIncident.getPriority());
         incident.setSource(updatedIncident.getSource());
+        if (updatedIncident.getType() != null) {
+            incident.setType(updatedIncident.getType());
+        }
+        incident.setWorkshop(blankToNull(updatedIncident.getWorkshop()));
+        incident.setHouse(blankToNull(updatedIncident.getHouse()));
+        incident.setZone(blankToNull(updatedIncident.getZone()));
         incident.setStatus(updatedIncident.getStatus());
         incident.setDetectedAt(updatedIncident.getDetectedAt());
         incident.setClosedAt(updatedIncident.getClosedAt());
@@ -120,6 +150,34 @@ public class IncidentService {
 
     private String firstNotBlank(String value, String defaultValue){
         return value != null && !value.isBlank() ? value : defaultValue;
+    }
+
+    private String blankToNull(String value){
+        return value != null && !value.isBlank() ? value : null;
+    }
+
+    private String buildIncidentTitle(Incident incident){
+        List<String> locationParts = new ArrayList<>();
+
+        addIfNotBlank(locationParts, incident.getWorkshop());
+        addIfNotBlank(locationParts, incident.getHouse());
+        addIfNotBlank(locationParts, incident.getZone());
+
+        String title = incident.getType() != null
+                ? incident.getType().getDisplayName()
+                : IncidentType.OTHER.getDisplayName();
+
+        if (!locationParts.isEmpty()){
+            title += ": " + String.join(" / ", locationParts);
+        }
+
+        return title;
+    }
+
+    private void addIfNotBlank(List<String> values, String value){
+        if (value != null && !value.isBlank()){
+            values.add(value);
+        }
     }
 
     private String generateIncidentCode(){
