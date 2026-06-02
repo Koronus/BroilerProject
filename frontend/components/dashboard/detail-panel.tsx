@@ -1,5 +1,6 @@
 "use client"
-
+import { GrafanaStyleChart } from "./grafana-style-chart"
+import { FullChartModal } from "./full-chart-modal"
 import { useEffect, useState } from "react"
 import { AlertTriangle, ClipboardPlus, FileText, X } from "lucide-react"
 import {
@@ -28,6 +29,7 @@ interface DetailPanelProps {
   selectedHouseIds?: string[]
   selectedBatchIds?: string[]
   selectedAgeRangeId?: string
+  onNavigateToTasks?: () => void
 }
 
 interface TelemetryReading {
@@ -36,6 +38,8 @@ interface TelemetryReading {
   unit: string
   measuredAt: string
 }
+
+
 
 const sensorCodeByMetricId: Record<string, string> = {
   temperature_0_3: "TEMP-HOUSE-4-01",
@@ -89,10 +93,13 @@ export function DetailPanel({
   selectedWorkshopIds = [],
   selectedHouseIds = [],
   selectedBatchIds = [],
-  selectedAgeRangeId = "all"
+  selectedAgeRangeId = "all",
+   onNavigateToTasks
 }: DetailPanelProps) {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false)
+  const [isChartModalOpen, setIsChartModalOpen] = useState(false)
+  const [chartType, setChartType] = useState<"area" | "line" | "bar">("area")
   const [liveReading, setLiveReading] = useState<TelemetryReading | null>(null)
   let metricData = metricsDetails[activeMetric]
 
@@ -795,7 +802,7 @@ const generateFullReportHTML = () => {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
               Целевой диапазон
             </p>
-            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
+            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50 whitespace-nowrap -ml-3">
               {metricData.targetRange}
             </div>
             <Badge className="mt-3 border border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
@@ -806,33 +813,20 @@ const generateFullReportHTML = () => {
 
         <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
           <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 7 дней</h3>
-          <div className="mt-4 h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={metricData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="detailMetric" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={getChartColor(metricData.status)} stopOpacity={0.28} />
-                    <stop offset="95%" stopColor={getChartColor(metricData.status)} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(113,113,122,0.16)" vertical={false} />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={formatYAxis} domain={["auto", "auto"]} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "rgba(255,255,255,0.96)",
-                    border: "1px solid rgba(0,0,0,0.06)",
-                    borderRadius: "16px",
-                    color: "#18181b",
-                  }}
-                  formatter={formatTooltip}
-                  labelStyle={{ color: "#71717a" }}
-                />
-                <Area type="monotone" dataKey="value" stroke={getChartColor(metricData.status)} strokeWidth={2.5} fillOpacity={1} fill="url(#detailMetric)" />
-              </AreaChart>
-            </ResponsiveContainer>
+         
+            <GrafanaStyleChart
+              title={metricData.title}
+              data={metricData.chartData}
+              dataKey="value"
+              xAxisKey="day"
+              unit={formatUnit()}
+              color={getChartColor(metricData.status)}
+              onExpand={() => setIsChartModalOpen(true)}
+              targetMin={stats.targetMin}
+              targetMax={stats.targetMax}
+            />
           </div>
-        </div>
+        
 
         <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
           <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
@@ -901,6 +895,15 @@ const generateFullReportHTML = () => {
             <ClipboardPlus className="size-4" />
             Создать задачу
           </Button>
+          {onNavigateToTasks && (
+            <Button
+              variant="outline"
+              onClick={onNavigateToTasks}
+              className="rounded-full border-black/10 bg-white/80 text-zinc-700 hover:bg-white dark:border-white/10 dark:bg-white/4 dark:text-zinc-200 dark:hover:bg-white/8"
+            >
+              Все задачи
+            </Button>
+          )}
         </div>
       </aside>
 
@@ -909,7 +912,6 @@ const generateFullReportHTML = () => {
         onClose={() => setIsReportsModalOpen(false)}
         onFullReport={handleFullReport}
         onPDFReport={handlePDFReport}
-        
       />
 
       <CreateTaskModal
@@ -918,6 +920,19 @@ const generateFullReportHTML = () => {
         metricTitle={metricData.title}
         metricId={activeMetric}
         currentValue={metricData.currentValue}
+      />
+
+      <FullChartModal
+        isOpen={isChartModalOpen}
+        onClose={() => setIsChartModalOpen(false)}
+        title={metricData.title}
+        data={metricData.chartData}
+        dataKey="value"
+        xAxisKey="day"
+        unit={formatUnit()}
+        color={getChartColor(metricData.status)}
+        chartType={chartType}
+        onChartTypeChange={(type: string) => setChartType(type as "area" | "line" | "bar")}
       />
     </>
   )
