@@ -34,19 +34,6 @@ import { cn } from "@/lib/utils"
 
 type IncidentPriority = "critical" | "high" | "medium" | "low"
 type IncidentStatus = "new" | "inProgress" | "overdue" | "closed"
-type IncidentType =
-  | "microclimate"
-  | "sanitation"
-  | "flockHealth"
-  | "feeding"
-  | "waterSupply"
-  | "productionMetrics"
-  | "other"
-
-interface SelectOption {
-  value: string
-  label: string
-}
 
 interface BackendIncident {
   id: string
@@ -167,48 +154,6 @@ const backendSourceIconMap: Record<string, LucideIcon> = {
   ANALYTICS: ShieldAlert,
 }
 
-const incidentTypeOptions: SelectOption[] = [
-  { value: "microclimate", label: "Микроклимат" },
-  { value: "sanitation", label: "Санитария" },
-  { value: "flockHealth", label: "Падеж и состояние стада" },
-  { value: "feeding", label: "Кормление" },
-  { value: "waterSupply", label: "Водоснабжение" },
-  { value: "productionMetrics", label: "Производственные показатели" },
-  { value: "other", label: "Прочее" },
-]
-
-const workshopOptions = ["Цех 1", "Цех 2", "Цех 3"]
-const houseOptions = ["Птичник 1", "Птичник 2", "Птичник 3"]
-const zoneOptions = ["Линия поения 1", "Линия поения 2"]
-
-const responsibleOptions = [
-  "Главный ветеринарный врач",
-  "Главный зоотехник",
-  "Главный инженер",
-  "Директор по качеству",
-  "Системный администратор",
-  "Руководитель комплекса",
-  "Служба безопасности",
-  "Оператор цеха (птичница)",
-]
-
-const incidentTypeMap: Record<IncidentType, string> = {
-  microclimate: "MICROCLIMATE",
-  sanitation: "SANITATION",
-  flockHealth: "FLOCK_HEALTH",
-  feeding: "FEEDING",
-  waterSupply: "WATER_SUPPLY",
-  productionMetrics: "PRODUCTION_METRICS",
-  other: "OTHER",
-}
-
-const incidentPriorityMap: Record<IncidentPriority, string> = {
-  critical: "CRITICAL",
-  high: "HIGH",
-  medium: "MEDIUM",
-  low: "LOW",
-}
-
 const unknownValue = "—"
 const incidentRefreshIntervalMs = 10_000
 
@@ -231,6 +176,27 @@ const formatBackendDateTime = (value?: string | null) => {
   }
 }
 
+const parseIncidentDateTime = (dateLabel: string, timeLabel: string) => {
+  const [day, month, year] = dateLabel.split(".").map(Number)
+  const [hour = 0, minute = 0] = timeLabel.split(":").map(Number)
+
+  if (!day || !month || !year) {
+    return undefined
+  }
+
+  const date = new Date(year, month - 1, day, hour, minute)
+
+  return Number.isNaN(date.getTime()) ? undefined : date.getTime()
+}
+
+const getIncidentTimestamp = (incident: Incident) =>
+  parseIncidentDateTime(incident.date, incident.time)
+
+const sortIncidents = (incidents: Incident[]) =>
+  [...incidents].sort(
+    (a, b) => (getIncidentTimestamp(b) ?? 0) - (getIncidentTimestamp(a) ?? 0),
+  )
+
 const resolveLocation = (code?: string | null) => {
   if (code === "INC-1") return { workshop: "Цех 2", poultryHouse: "Птичник 4", zone: "Зона посадки" }
   if (code === "INC-2") return { workshop: "Цех 1", poultryHouse: "Птичник 2", zone: "Основной зал" }
@@ -247,7 +213,7 @@ const toIncident = (incident: BackendIncident): Incident => {
   const hasSpecificType = Boolean(type && type !== "OTHER")
   const { date, time } = formatBackendDateTime(incident.detectedAt ?? incident.createdAt)
   const id = incident.code ?? incident.id
-  const location = resolveLocation(id)
+  const fallbackLocation = resolveLocation(id)
 
   return {
     id,
@@ -265,19 +231,14 @@ const toIncident = (incident: BackendIncident): Incident => {
         : backendSourceIconMap[source] ?? backendIncidentTypeIconMap[type] ?? AlertTriangle,
     shortDescription: incident.title,
     description: incident.description ?? "Описание не указано.",
-    workshop: location.workshop,
-    poultryHouse: location.poultryHouse,
-    zone: location.zone,
+    workshop: incident.workshop ?? fallbackLocation.workshop,
+    poultryHouse: incident.house ?? fallbackLocation.poultryHouse,
+    zone: incident.zone ?? fallbackLocation.zone,
     priority: backendPriorityMap[normalizeBackendEnum(incident.priority)] ?? "medium",
     status: backendStatusMap[normalizeBackendEnum(incident.status)] ?? "new",
     responsible: incident.responsible ?? "Не назначен",
     comment: incident.decisionComment ?? "Комментарий не указан.",
   }
-}
-
-const sortIncidents = (incidents: Incident[]) => {
-  const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
-  return [...incidents].sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority])
 }
 
 const buildKpiItems = (incidents: Incident[]) => [
@@ -482,37 +443,73 @@ function IncidentDetails({
 }
 
 const categoryOptions = [
-  "Нарушение биобезопасности",
-  "Поломка оборудования",
-  "Качество кормов",
+  "Микроклимат",
+  "Санитария",
+  "Падеж и состояние стада",
+  "Кормление",
+  "Водоснабжение",
+  "Производственные показатели",
   "Прочее",
 ]
 
+const categoryBackendTypeMap: Record<string, string> = {
+  "Микроклимат": "MICROCLIMATE",
+  "Санитария": "SANITATION",
+  "Падеж и состояние стада": "FLOCK_HEALTH",
+  "Кормление": "FEEDING",
+  "Водоснабжение": "WATER_SUPPLY",
+  "Производственные показатели": "PRODUCTION_METRICS",
+  "Прочее": "OTHER",
+}
+
+const priorityBackendMap: Record<string, string> = {
+  "Критический": "CRITICAL",
+  "Высокий": "HIGH",
+  "Средний": "MEDIUM",
+  "Низкий": "LOW",
+}
+
+const workshopOptions = ["Цех 1", "Цех 2", "Цех 3"]
+
 const housesByWorkshop: Record<string, string[]> = {
-  "Цех 1": ["Птичник 1", "Птичник 2"],
-  "Цех 2": ["Птичник 4", "Птичник 5"],
-  "Цех 3": ["Птичник 1", "Птичник 3"],
+  "Цех 1": ["Птичник 1", "Птичник 2", "Птичник 3"],
+  "Цех 2": ["Птичник 1", "Птичник 2", "Птичник 3"],
+  "Цех 3": ["Птичник 1", "Птичник 2", "Птичник 3"],
 }
 
 const zonesByHouse: Record<string, string[]> = {
   "Птичник 1": ["Линия поения 1", "Линия поения 2"],
-  "Птичник 2": ["Склад подстилки", "Основной зал"],
-  "Птичник 3": ["Зона кормления", "Площадка контроля"],
-  "Птичник 4": ["Зона посадки", "Зона вентиляции"],
-  "Птичник 5": ["Модуль вентиляции", "Зона подстилки"],
+  "Птичник 2": ["Линия поения 1", "Линия поения 2"],
+  "Птичник 3": ["Линия поения 1", "Линия поения 2"],
 }
 
+const defaultResponsibleOptions = [
+  "Главный ветеринарный врач",
+  "Главный зоотехник",
+  "Главный инженер",
+  "Директор по качеству",
+  "Системный администратор",
+  "Руководитель комплекса",
+  "Служба безопасности",
+  "Оператор цеха (птичница)",
+]
+
 const responsibleByCategory: Record<string, string[]> = {
-  "Нарушение биобезопасности": ["Ветврач", "Служба дератизации"],
-  "Поломка оборудования": ["Главный инженер", "Дежурный механик"],
-  "Качество кормов": ["Зоотехник", "Лаборатория кормов"],
-  "Прочее": ["Старший смены"],
+  "Микроклимат": ["Главный инженер", "Оператор цеха (птичница)", "Главный зоотехник"],
+  "Санитария": ["Директор по качеству", "Служба безопасности", "Оператор цеха (птичница)"],
+  "Падеж и состояние стада": ["Главный ветеринарный врач", "Главный зоотехник"],
+  "Кормление": ["Главный зоотехник", "Руководитель комплекса"],
+  "Водоснабжение": ["Главный инженер", "Оператор цеха (птичница)"],
+  "Производственные показатели": ["Руководитель комплекса", "Главный зоотехник"],
+  "Прочее": defaultResponsibleOptions,
 }
+
+const initialIncidents = sortIncidents(fallbackIncidents)
 
 export function IncidentsPage() {
   const router = useRouter()
-  const [incidents, setIncidents] = useState<Incident[]>(fallbackIncidents)
-  const [activeIncidentId, setActiveIncidentId] = useState(fallbackIncidents[0].id)
+  const [incidents, setIncidents] = useState<Incident[]>(initialIncidents)
+  const [activeIncidentId, setActiveIncidentId] = useState(initialIncidents[0].id)
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("Все типы")
   const [houseFilter, setHouseFilter] = useState("Все птичники")
@@ -547,13 +544,26 @@ export function IncidentsPage() {
         const nextIncidents = sortIncidents(data.map(toIncident))
 
         if (!isCancelled) {
-          setIncidents(nextIncidents.length > 0 ? nextIncidents : fallbackIncidents)
-          setActiveIncidentId((nextIncidents[0] ?? fallbackIncidents[0]).id)
+          hasCompletedInitialLoad = true
+          setIncidents(nextIncidents)
+          setActiveIncidentId((currentId) =>
+            nextIncidents.some((incident) => incident.id === currentId)
+              ? currentId
+              : nextIncidents[0]?.id ?? "",
+          )
         }
       } catch {
         if (!isCancelled) {
-          setIncidents(fallbackIncidents)
-          setActiveIncidentId(fallbackIncidents[0].id)
+          if (!hasCompletedInitialLoad) {
+            setIncidents(initialIncidents)
+            setActiveIncidentId((currentId) =>
+              initialIncidents.some((incident) => incident.id === currentId)
+                ? currentId
+                : initialIncidents[0]?.id ?? "",
+            )
+          }
+
+          hasCompletedInitialLoad = true
         }
       } finally {
         if (!isCancelled) setIsLoading(false)
@@ -596,16 +606,22 @@ export function IncidentsPage() {
   const statusOptions = useMemo(() => ["Все статусы", ...Array.from(new Set(incidents.map((i) => statusConfig[i.status].label)))], [incidents])
   const priorityOptions = useMemo(() => ["Любой", ...Array.from(new Set(incidents.map((i) => priorityConfig[i.priority].label)))], [incidents])
 
-  const currentHouseOptions = housesByWorkshop[newWorkshop] ?? []
-  const currentZoneOptions = zonesByHouse[newHouse] ?? []
-  const currentResponsibleOptions = responsibleByCategory[newCategory] ?? ["Старший смены"]
+  const currentHouseOptions = useMemo(
+    () => housesByWorkshop[newWorkshop] ?? [],
+    [newWorkshop],
+  )
+  const currentZoneOptions = useMemo(
+    () => zonesByHouse[newHouse] ?? [],
+    [newHouse],
+  )
+  const currentResponsibleOptions = useMemo(
+    () => responsibleByCategory[newCategory] ?? defaultResponsibleOptions,
+    [newCategory],
+  )
 
   useEffect(() => {
-    if (newCategory === "Нарушение биобезопасности") {
-      setNewPriority("Высокий")
-    }
-    setNewResponsible(responsibleByCategory[newCategory] ?? ["Старший смены"])
-  }, [newCategory])
+    setNewResponsible(currentResponsibleOptions)
+  }, [currentResponsibleOptions])
 
   useEffect(() => {
     const firstHouse = currentHouseOptions[0]
@@ -621,45 +637,42 @@ export function IncidentsPage() {
     }
   }, [newHouse, currentZoneOptions, newZone])
 
-  const handleCreateIncident = () => {
-    const nextNumber =
-      incidents.reduce((max, incident) => {
-        const match = incident.id.match(/^INC-(\d+)$/)
-        const value = match ? Number(match[1]) : 0
-        return Math.max(max, value)
-      }, 0) + 1
+  const handleCreateIncident = async () => {
+    try {
+      const response = await fetch("/api/incidents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: categoryBackendTypeMap[newCategory] ?? "OTHER",
+          workshop: newWorkshop,
+          house: newHouse,
+          zone: newZone,
+          priority: priorityBackendMap[newPriority] ?? "MEDIUM",
+          description: newDescription.trim(),
+          responsible: newResponsible.join(", ") || null,
+        }),
+      })
+      const responseBody = await response.text()
 
-    const id = `INC-${nextNumber}`
+      if (!response.ok) {
+        throw new Error(responseBody || "Не удалось создать инцидент")
+      }
 
-    const priorityByLabel: Record<string, IncidentPriority> = {
-      Критический: "critical",
-      Высокий: "high",
-      Средний: "medium",
-      Низкий: "low",
+      const createdIncident = JSON.parse(responseBody) as BackendIncident
+      const nextIncident = toIncident(createdIncident)
+
+      setIncidents((current) => sortIncidents([nextIncident, ...current]))
+      setActiveIncidentId(nextIncident.id)
+      setIsCreateOpen(false)
+      setNewDescription("")
+      setCreateSuccessMessage(`Инцидент №${nextIncident.id} успешно создан и передан в работу`)
+      setTimeout(() => setCreateSuccessMessage(""), 4000)
+    } catch (error) {
+      setCreateSuccessMessage(error instanceof Error ? error.message : "Не удалось создать инцидент")
+      setTimeout(() => setCreateSuccessMessage(""), 4000)
     }
-
-    const createdIncident: Incident = {
-      id,
-      date: new Date().toLocaleDateString("ru-RU"),
-      time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-      type: newCategory,
-      icon: newCategory === "Поломка оборудования" ? Wrench : AlertTriangle,
-      shortDescription: newDescription.slice(0, 80) || "Новый инцидент",
-      description: newDescription || "Описание не заполнено.",
-      workshop: newWorkshop,
-      poultryHouse: newHouse,
-      zone: newZone,
-      priority: priorityByLabel[newPriority] ?? "medium",
-      status: "new",
-      responsible: newResponsible.join(", "),
-      comment: "Создан вручную через форму инцидента.",
-    }
-
-    setIncidents((current) => [createdIncident, ...current])
-    setActiveIncidentId(id)
-    setIsCreateOpen(false)
-    setCreateSuccessMessage(`Инцидент №${id} успешно создан и передан в работу`)
-    setTimeout(() => setCreateSuccessMessage(""), 4000)
   }
 
   const handleCloseIncident = (id: string) => {
