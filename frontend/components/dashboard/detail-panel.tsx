@@ -802,7 +802,7 @@ const generateFullReportHTML = () => {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
               Целевой диапазон
             </p>
-            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
+            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50 whitespace-nowrap -ml-3">
               {metricData.targetRange}
             </div>
             <Badge className="mt-3 border border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
