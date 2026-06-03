@@ -14,6 +14,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+   ReferenceLine,
 } from "recharts"
 
 interface FullChartModalProps {
@@ -27,6 +28,8 @@ interface FullChartModalProps {
   color: string
   chartType: string
   onChartTypeChange: (type: string) => void
+  targetMin?: number
+  targetMax?: number
 }
 
 export function FullChartModal({
@@ -40,52 +43,63 @@ export function FullChartModal({
   color,
   chartType,
   onChartTypeChange,
+  targetMin,
+  targetMax,
 }: FullChartModalProps) {
   if (!isOpen) return null
 
   // Функция для форматирования значения с нужным количеством знаков
   const formatValue = (value: number) => {
     if (unit === "%" || title.toLowerCase().includes("влажность")) {
-      return value.toFixed(2)
+      return value.toFixed(1)
     }
     if (unit === "°C" || title.toLowerCase().includes("температура")) {
       return value.toFixed(1)
     }
+    if (title.toLowerCase().includes("fcr") || title.toLowerCase().includes("конверсия")) {
+      return value.toFixed(2)
+    }
     return value.toFixed(2)
   }
 
-  // Ручное создание уникальных тиков для оси Y
-  const getUniqueTicks = () => {
-    if (!data || data.length === 0) return undefined
+  // Получение всех уникальных значений для оси Y
+  const getAllYAxisValues = () => {
+    if (!data || data.length === 0) return []
     const values = data.map(item => item[dataKey]).filter(v => v !== undefined && v !== null)
-    if (values.length === 0) return undefined
-    
-    const min = Math.min(...values)
-    const max = Math.max(...values)
-    
-    // Если диапазон слишком маленький, расширяем его
-    let rangeMin = min
-    let rangeMax = max
-    if (max - min < 0.5) {
-      rangeMin = min - 0.3
-      rangeMax = max + 0.3
-    }
-    
-    const step = (rangeMax - rangeMin) / 4
-    const ticks: number[] = []
-    for (let i = 0; i <= 4; i++) {
-      const tick = +(rangeMin + i * step).toFixed(1)
-      // Добавляем только уникальные значения
-      if (!ticks.includes(tick)) {
-        ticks.push(tick)
-      }
-    }
-    return ticks
+    // Сортируем и убираем дубликаты
+    const uniqueSorted = [...new Set(values)].sort((a, b) => a - b)
+    return uniqueSorted
   }
 
-  const yAxisTicks = getUniqueTicks()
+  // Получение всех уникальных значений для оси Y с учетом целевого диапазона
+  const getYAxisTicks = () => {
+    const values = getAllYAxisValues()
+    if (values.length === 0) return undefined
+    
+    // Добавляем целевые значения, если они есть и не входят в набор
+    const allValues = [...values]
+    if (targetMin !== undefined && targetMin !== -Infinity && !allValues.includes(targetMin)) {
+      allValues.push(targetMin)
+    }
+    if (targetMax !== undefined && targetMax !== Infinity && !allValues.includes(targetMax)) {
+      allValues.push(targetMax)
+    }
+    
+    // Сортируем
+    allValues.sort((a, b) => a - b)
+    
+    // Если значений слишком много (больше 10), показываем каждое второе
+    if (allValues.length > 10) {
+      const step = Math.ceil(allValues.length / 8)
+      return allValues.filter((_, index) => index % step === 0)
+    }
+    
+    return allValues
+  }
 
-  // Форматтер для оси Y
+  const yAxisTicks = getYAxisTicks()
+
+  // Форматтер для оси Y - показывает все значения
   const yAxisTickFormatter = (value: number) => {
     return `${formatValue(value)}${unit}`
   }
@@ -95,10 +109,73 @@ export function FullChartModal({
     return [`${formatValue(value)}${unit}`, title]
   }
 
+  // Форматтер для оси X (для временных меток)
+  const xAxisTickFormatter = (value: string) => {
+    return value
+  }
+
+  // Получение домена для оси Y (min и max с небольшим запасом)
+  const getYAxisDomain = () => {
+    const values = data.map(item => item[dataKey]).filter(v => v !== undefined && v !== null)
+    if (values.length === 0) return ['auto', 'auto']
+    
+    let min = Math.min(...values)
+    let max = Math.max(...values)
+    
+    // Добавляем целевой диапазон
+    if (targetMin !== undefined && targetMin !== -Infinity && targetMin < min) {
+      min = targetMin
+    }
+    if (targetMax !== undefined && targetMax !== Infinity && targetMax > max) {
+      max = targetMax
+    }
+    
+    // Добавляем небольшой запас (5% от диапазона)
+    const padding = (max - min) * 0.05
+    return [min - padding, max + padding]
+  }
+
+  const yAxisDomain = getYAxisDomain()
+
   const renderChart = () => {
     const commonProps = {
       data,
-      margin: { top: 20, right: 30, left: 20, bottom: 20 },
+      margin: { top: 20, right: 30, left: 40, bottom: 60 },
+    }
+
+    const chartProps = {
+      ...commonProps,
+      children: (
+        <>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis 
+            dataKey={xAxisKey} 
+            tick={{ fill: "#64748b", fontSize: 11 }} 
+            tickFormatter={xAxisTickFormatter}
+            angle={-45}
+            textAnchor="end"
+            height={60}
+            interval={0}
+          />
+          <YAxis 
+            tick={{ fill: "#64748b", fontSize: 11 }} 
+            tickFormatter={yAxisTickFormatter}
+            domain={yAxisDomain}
+            ticks={yAxisTicks}
+            width={60}
+            allowDecimals={true}
+            label={{ 
+              value: unit, 
+              angle: -90, 
+              position: "insideLeft",
+              style: { fill: "#64748b", fontSize: 12 },
+              offset: -10
+            }}
+          />
+          <Tooltip formatter={tooltipFormatter} labelFormatter={(label) => `Время: ${label}`} />
+          <Legend />
+        </>
+      ),
     }
 
     switch (chartType) {
@@ -106,64 +183,183 @@ export function FullChartModal({
         return (
           <AreaChart {...commonProps}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 12 }} />
-            <YAxis 
-              tick={{ fill: "#64748b", fontSize: 12 }} 
-              tickFormatter={yAxisTickFormatter}
-              domain={['auto', 'auto']}
-              ticks={yAxisTicks}
+            <XAxis 
+              dataKey={xAxisKey} 
+              tick={{ fill: "#64748b", fontSize: 11 }} 
+              tickFormatter={xAxisTickFormatter}
+              angle={-45}
+              textAnchor="end"
+              height={60}
+              interval={0}
             />
-            <Tooltip formatter={tooltipFormatter} />
+            <YAxis 
+              tick={{ fill: "#64748b", fontSize: 11 }} 
+              tickFormatter={yAxisTickFormatter}
+              domain={yAxisDomain}
+              ticks={yAxisTicks}
+              width={60}
+              allowDecimals={true}
+              label={{ 
+                value: unit, 
+                angle: -90, 
+                position: "insideLeft",
+                style: { fill: "#64748b", fontSize: 12 },
+                offset: -10
+              }}
+            />
+            <Tooltip formatter={tooltipFormatter} labelFormatter={(label) => `Время: ${label}`} />
             <Legend />
-            <Area type="linear" dataKey={dataKey} stroke={color} fill={`${color}20`} strokeWidth={3} />
+            <Area 
+              type="monotone" 
+              dataKey={dataKey} 
+              stroke={color} 
+              fill={`${color}20`} 
+              strokeWidth={3}
+              dot={{ r: 4, fill: color }}
+              activeDot={{ r: 6 }}
+            />
+            {targetMin !== undefined && targetMin !== -Infinity && (
+              <ReferenceLine y={targetMin} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: `Нижняя граница: ${targetMin}${unit}`, fill: "#f59e0b", fontSize: 10 }} />
+            )}
+            {targetMax !== undefined && targetMax !== Infinity && (
+              <ReferenceLine y={targetMax} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: `Верхняя граница: ${targetMax}${unit}`, fill: "#f59e0b", fontSize: 10 }} />
+            )}
           </AreaChart>
         )
       case "line":
         return (
           <LineChart {...commonProps}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 12 }} />
-            <YAxis 
-              tick={{ fill: "#64748b", fontSize: 12 }} 
-              tickFormatter={yAxisTickFormatter}
-              domain={['auto', 'auto']}
-              ticks={yAxisTicks}
+            <XAxis 
+              dataKey={xAxisKey} 
+              tick={{ fill: "#64748b", fontSize: 11 }} 
+              tickFormatter={xAxisTickFormatter}
+              angle={-45}
+              textAnchor="end"
+              height={60}
+              interval={0}
             />
-            <Tooltip formatter={tooltipFormatter} />
+            <YAxis 
+              tick={{ fill: "#64748b", fontSize: 11 }} 
+              tickFormatter={yAxisTickFormatter}
+              domain={yAxisDomain}
+              ticks={yAxisTicks}
+              width={60}
+              allowDecimals={true}
+              label={{ 
+                value: unit, 
+                angle: -90, 
+                position: "insideLeft",
+                style: { fill: "#64748b", fontSize: 12 },
+                offset: -10
+              }}
+            />
+            <Tooltip formatter={tooltipFormatter} labelFormatter={(label) => `Время: ${label}`} />
             <Legend />
-            <Line type="linear" dataKey={dataKey} stroke={color} strokeWidth={3} dot={{ r: 4 }} />
+            <Line 
+              type="monotone" 
+              dataKey={dataKey} 
+              stroke={color} 
+              strokeWidth={3} 
+              dot={{ r: 4, fill: color }}
+              activeDot={{ r: 6 }}
+            />
+            {targetMin !== undefined && targetMin !== -Infinity && (
+              <ReferenceLine y={targetMin} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: `Нижняя граница: ${targetMin}${unit}`, fill: "#f59e0b", fontSize: 10 }} />
+            )}
+            {targetMax !== undefined && targetMax !== Infinity && (
+              <ReferenceLine y={targetMax} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: `Верхняя граница: ${targetMax}${unit}`, fill: "#f59e0b", fontSize: 10 }} />
+            )}
           </LineChart>
         )
       case "bar":
         return (
           <BarChart {...commonProps}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 12 }} />
-            <YAxis 
-              tick={{ fill: "#64748b", fontSize: 12 }} 
-              tickFormatter={yAxisTickFormatter}
-              domain={['auto', 'auto']}
-              ticks={yAxisTicks}
+            <XAxis 
+              dataKey={xAxisKey} 
+              tick={{ fill: "#64748b", fontSize: 11 }} 
+              tickFormatter={xAxisTickFormatter}
+              angle={-45}
+              textAnchor="end"
+              height={60}
+              interval={0}
             />
-            <Tooltip formatter={tooltipFormatter} />
+            <YAxis 
+              tick={{ fill: "#64748b", fontSize: 11 }} 
+              tickFormatter={yAxisTickFormatter}
+              domain={yAxisDomain}
+              ticks={yAxisTicks}
+              width={60}
+              allowDecimals={true}
+              label={{ 
+                value: unit, 
+                angle: -90, 
+                position: "insideLeft",
+                style: { fill: "#64748b", fontSize: 12 },
+                offset: -10
+              }}
+            />
+            <Tooltip formatter={tooltipFormatter} labelFormatter={(label) => `Время: ${label}`} />
             <Legend />
-            <Bar dataKey={dataKey} fill={color} radius={[4, 4, 0, 0]} />
+            <Bar 
+              dataKey={dataKey} 
+              fill={color} 
+              radius={[4, 4, 0, 0]}
+            />
+            {targetMin !== undefined && targetMin !== -Infinity && (
+              <ReferenceLine y={targetMin} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: `Нижняя граница: ${targetMin}${unit}`, fill: "#f59e0b", fontSize: 10 }} />
+            )}
+            {targetMax !== undefined && targetMax !== Infinity && (
+              <ReferenceLine y={targetMax} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: `Верхняя граница: ${targetMax}${unit}`, fill: "#f59e0b", fontSize: 10 }} />
+            )}
           </BarChart>
         )
       default:
         return (
           <AreaChart {...commonProps}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey={xAxisKey} tick={{ fill: "#64748b", fontSize: 12 }} />
-            <YAxis 
-              tick={{ fill: "#64748b", fontSize: 12 }} 
-              tickFormatter={yAxisTickFormatter}
-              domain={['auto', 'auto']}
-              ticks={yAxisTicks}
+            <XAxis 
+              dataKey={xAxisKey} 
+              tick={{ fill: "#64748b", fontSize: 11 }} 
+              tickFormatter={xAxisTickFormatter}
+              angle={-45}
+              textAnchor="end"
+              height={60}
+              interval={0}
             />
-            <Tooltip formatter={tooltipFormatter} />
+            <YAxis 
+              tick={{ fill: "#64748b", fontSize: 11 }} 
+              tickFormatter={yAxisTickFormatter}
+              domain={yAxisDomain}
+              ticks={yAxisTicks}
+              width={60}
+              allowDecimals={true}
+              label={{ 
+                value: unit, 
+                angle: -90, 
+                position: "insideLeft",
+                style: { fill: "#64748b", fontSize: 12 },
+                offset: -10
+              }}
+            />
+            <Tooltip formatter={tooltipFormatter} labelFormatter={(label) => `Время: ${label}`} />
             <Legend />
-            <Area type="linear" dataKey={dataKey} stroke={color} fill={`${color}20`} strokeWidth={3} />
+            <Area 
+              type="monotone" 
+              dataKey={dataKey} 
+              stroke={color} 
+              fill={`${color}20`} 
+              strokeWidth={3}
+              dot={{ r: 4, fill: color }}
+              activeDot={{ r: 6 }}
+            />
+            {targetMin !== undefined && targetMin !== -Infinity && (
+              <ReferenceLine y={targetMin} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: `Нижняя граница: ${targetMin}${unit}`, fill: "#f59e0b", fontSize: 10 }} />
+            )}
+            {targetMax !== undefined && targetMax !== Infinity && (
+              <ReferenceLine y={targetMax} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: `Верхняя граница: ${targetMax}${unit}`, fill: "#f59e0b", fontSize: 10 }} />
+            )}
           </AreaChart>
         )
     }

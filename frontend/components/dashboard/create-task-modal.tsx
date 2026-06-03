@@ -181,7 +181,7 @@ export function CreateTaskModal({
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               Связанный показатель: <span className="font-medium">{metricTitle}</span>
               <br />
-              Текущее значение: <span className="font-medium">{currentValue}</span>
+              {/* Текущее значение: <span className="font-medium">{currentValue}</span> */}
             </p>
           </div>
 
