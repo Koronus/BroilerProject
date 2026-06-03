@@ -1,8 +1,9 @@
 "use client"
+
 import { GrafanaStyleChart } from "./grafana-style-chart"
 import { FullChartModal } from "./full-chart-modal"
 import { useEffect, useState } from "react"
-import { AlertTriangle, ClipboardPlus, FileText, X } from "lucide-react"
+import { AlertTriangle, ClipboardPlus, FileText, X, CheckCircle2, Clock, PlayCircle, User, Calendar as CalendarIcon } from "lucide-react"
 import {
   Area,
   AreaChart,
@@ -19,6 +20,7 @@ import { CreateTaskModal } from "./create-task-modal"
 import { ReportsModal } from "./reports-modal"
 import { type BirdAgeGroup } from "@/components/dashboard/kpi-grid"
 import { workshops, poultryHouses, batches, ageRangeOptions } from "@/lib/production-filters"
+import { cn } from "@/lib/utils"
 
 interface DetailPanelProps {
   onClose: () => void
@@ -39,7 +41,33 @@ interface TelemetryReading {
   measuredAt: string
 }
 
+interface MetricTask {
+  id: string
+  title: string
+  description: string
+  priority: "critical" | "high" | "medium" | "low"
+  responsible: string
+  status: "new" | "inProgress" | "review" | "completed" | "overdue"
+  deadline: string
+  createdAt: string
+  incidentId?: string
+  metricId?: string
+}
 
+const taskStatusConfig: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+  new: { label: "Новая", color: "text-blue-600", bg: "bg-blue-50", icon: PlayCircle },
+  inProgress: { label: "В работе", color: "text-orange-600", bg: "bg-orange-50", icon: PlayCircle },
+  review: { label: "На проверке", color: "text-purple-600", bg: "bg-purple-50", icon: CheckCircle2 },
+  completed: { label: "Выполнена", color: "text-emerald-600", bg: "bg-emerald-50", icon: CheckCircle2 },
+  overdue: { label: "Просрочена", color: "text-red-600", bg: "bg-red-50", icon: Clock },
+}
+
+const taskPriorityConfig: Record<string, { label: string; color: string; dot: string }> = {
+  critical: { label: "Критический", color: "text-red-600", dot: "bg-red-500" },
+  high: { label: "Высокий", color: "text-orange-600", dot: "bg-orange-500" },
+  medium: { label: "Средний", color: "text-yellow-600", dot: "bg-yellow-500" },
+  low: { label: "Низкий", color: "text-green-600", dot: "bg-green-500" },
+}
 
 const sensorCodeByMetricId: Record<string, string> = {
   temperature_0_3: "TEMP-HOUSE-4-01",
@@ -94,13 +122,16 @@ export function DetailPanel({
   selectedHouseIds = [],
   selectedBatchIds = [],
   selectedAgeRangeId = "all",
-   onNavigateToTasks
+  onNavigateToTasks
 }: DetailPanelProps) {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false)
   const [isChartModalOpen, setIsChartModalOpen] = useState(false)
   const [chartType, setChartType] = useState<"area" | "line" | "bar">("area")
   const [liveReading, setLiveReading] = useState<TelemetryReading | null>(null)
+  const [metricTasks, setMetricTasks] = useState<MetricTask[]>([])
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false)
+  
   let metricData = metricsDetails[activeMetric]
 
   useEffect(() => {
@@ -123,7 +154,13 @@ export function DetailPanel({
           throw new Error("Telemetry request failed")
         }
 
-        const readings = (await response.json()) as TelemetryReading[]
+        const text = await response.text()
+        if (!text) {
+          if (mounted) setLiveReading(null)
+          return
+        }
+
+        const readings = JSON.parse(text) as TelemetryReading[]
         if (mounted) {
           setLiveReading(readings[0] ?? null)
         }
@@ -142,6 +179,44 @@ export function DetailPanel({
       window.clearInterval(intervalId)
     }
   }, [activeMetric])
+
+  // Загрузка задач для конкретного показателя
+  useEffect(() => {
+    const loadMetricTasks = async () => {
+      setIsLoadingTasks(true)
+      try {
+        const response = await fetch(`/api/tasks?metricId=${activeMetric}`)
+        const text = await response.text()
+        
+        if (!text) {
+          setMetricTasks([])
+          return
+        }
+        
+        const data = JSON.parse(text)
+        setMetricTasks(data.tasks || [])
+      } catch (error) {
+        console.error("Ошибка загрузки задач:", error)
+        // Fallback на localStorage
+        try {
+          const stored = localStorage.getItem("tasks")
+          if (stored) {
+            const allTasks = JSON.parse(stored)
+            const filtered = allTasks.filter((task: any) => task.metricId === activeMetric)
+            setMetricTasks(filtered)
+          }
+        } catch (e) {
+          setMetricTasks([])
+        }
+      } finally {
+        setIsLoadingTasks(false)
+      }
+    }
+
+    if (metricData) {
+      loadMetricTasks()
+    }
+  }, [activeMetric, metricData])
 
   if (!metricData) {
     return (
@@ -204,71 +279,70 @@ export function DetailPanel({
   // ========== РАСЧЕТ СТАТИСТИЧЕСКИХ ПОКАЗАТЕЛЕЙ ==========
 
   const calculateStats = () => {
-  const values = metricData.chartData.map(item => item.value)
-  const avg = values.reduce((a, b) => a + b, 0) / values.length
-  const sorted = [...values].sort((a, b) => a - b)
-  const median = sorted[Math.floor(sorted.length / 2)]
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  
-  const variance = values.reduce((acc, val) => acc + Math.pow(val - avg, 2), 0) / values.length
-  const stdDev = Math.sqrt(variance)
-  
-  // Универсальный парсинг targetRange
-  let targetMin = -Infinity
-  let targetMax = Infinity
-  const targetRangeStr = metricData.targetRange.trim()
-  
-  // Проверка на формат "min-max" (например, "39.4-40.5")
-  if (targetRangeStr.includes("-") && !targetRangeStr.includes("<") && !targetRangeStr.includes(">")) {
-    const parts = targetRangeStr.split("-")
-    targetMin = parseFloat(parts[0]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "-Infinity")
-    targetMax = parseFloat(parts[1]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "Infinity")
-  }
-  // Проверка на формат "< значение" (например, "< 1.5%")
-  else if (targetRangeStr.includes("<")) {
-    const match = targetRangeStr.match(/<\s*([0-9.,]+)/)
-    if (match) {
-      targetMax = parseFloat(match[1].replace(',', '.'))
-      targetMin = -Infinity
+    const values = metricData.chartData.map(item => item.value)
+    const avg = values.reduce((a, b) => a + b, 0) / values.length
+    const sorted = [...values].sort((a, b) => a - b)
+    const median = sorted[Math.floor(sorted.length / 2)]
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    
+    const variance = values.reduce((acc, val) => acc + Math.pow(val - avg, 2), 0) / values.length
+    const stdDev = Math.sqrt(variance)
+    
+    let targetMin = -Infinity
+    let targetMax = Infinity
+    const targetRangeStr = metricData.targetRange.trim()
+    
+    if (targetRangeStr.includes("-") && !targetRangeStr.includes("<") && !targetRangeStr.includes(">")) {
+      const parts = targetRangeStr.split("-")
+      targetMin = parseFloat(parts[0]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "-Infinity")
+      targetMax = parseFloat(parts[1]?.replace(/[^0-9.,]/g, '').replace(',', '.') || "Infinity")
+    } else if (targetRangeStr.includes("<")) {
+      const match = targetRangeStr.match(/<\s*([0-9.,]+)/)
+      if (match) {
+        targetMax = parseFloat(match[1].replace(',', '.'))
+        targetMin = -Infinity
+      }
+    } else if (targetRangeStr.includes(">")) {
+      const match = targetRangeStr.match(/>\s*([0-9.,]+)/)
+      if (match) {
+        targetMin = parseFloat(match[1].replace(',', '.'))
+        targetMax = Infinity
+      }
     }
+    
+    const exceedCount = values.filter(v => v > targetMax).length
+    
+    return { avg, median, min, max, stdDev, exceedCount, targetMin, targetMax }
   }
-  // Проверка на формат "> значение" (например, "> 90%")
-  else if (targetRangeStr.includes(">")) {
-    const match = targetRangeStr.match(/>\s*([0-9.,]+)/)
-    if (match) {
-      targetMin = parseFloat(match[1].replace(',', '.'))
-      targetMax = Infinity
-    }
-  }
-  
-  console.log("targetRange:", targetRangeStr)
-  console.log("targetMin:", targetMin, "targetMax:", targetMax)
-  
-  const inNormCount = values.filter(v => v >= targetMin && v <= targetMax).length
-  const normPercent = (inNormCount / values.length) * 100
-  const exceedCount = values.filter(v => v > targetMax).length
-  
-  return { avg, median, min, max, stdDev, normPercent, exceedCount, targetMin, targetMax }
-}
 
   const stats = calculateStats()
 
-  // Распределение по времени суток (имитация на основе имеющихся данных)
-  const getTimeDistribution = () => {
-    const days = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-    return metricData.chartData.map((item, index) => ({
-      day: item.day,
-      value: item.value,
-      timeOfDay: index < 2 ? "Ночь" : index < 4 ? "Утро" : index < 6 ? "День" : "Вечер"
-    }))
+  const formatUnit = () => {
+    if (metricData.title.includes("Температура")) return "°C"
+    if (metricData.title.includes("Аммиак")) return " ppm"
+    if (metricData.title.includes("Вес")) return metricData.currentValue.includes("кг") ? " кг" : " г"
+    if (metricData.title.includes("%")) return "%"
+    return ""
   }
 
-  // ========== ФУНКЦИЯ ГЕНЕРАЦИИ ПОЛНОГО ОТЧЕТА ==========
+  // Функция форматирования даты для задач
+  const formatTaskDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      const now = new Date()
+      const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      
+      if (diffDays < 0) return `Просрочена на ${Math.abs(diffDays)} дн.`
+      if (diffDays === 0) return "Сегодня"
+      if (diffDays === 1) return "Завтра"
+      return `Через ${diffDays} дн.`
+    } catch {
+      return "Дата не указана"
+    }
+  }
 
- // ========== ФУНКЦИЯ ГЕНЕРАЦИИ ПОЛНОГО ОТЧЕТА ==========
-
-const generateFullReportHTML = () => {
+  const generateFullReportHTML = () => {
   // Расчет дополнительных статистических показателей
   const values = metricData.chartData.map(item => item.value)
   const range = stats.max - stats.min
@@ -372,8 +446,8 @@ const generateFullReportHTML = () => {
             color: #1e293b;
           }
           .status-summary {
-            background: #f0fdf4;
-            border-left: 4px solid #10b981;
+            background: #fefefe;
+            border-left: 4px solid #fbfbfb;
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 20px;
@@ -473,7 +547,7 @@ const generateFullReportHTML = () => {
             <div class="info-item"><span class="info-label">Птичник:</span><span class="info-value">${getSelectedHouseNames()}</span></div>
             <div class="info-item"><span class="info-label">Партия:</span><span class="info-value">${getSelectedBatchNames()}</span></div>
             <div class="info-item"><span class="info-label">Возраст птицы:</span><span class="info-value">${selectedAge === "0-3" ? "0-3 дня" : "21-30 дней"}</span></div>
-            <div class="info-item"><span class="info-label">Период анализа:</span><span class="info-value">7 дней</span></div>
+            <div class="info-item"><span class="info-label">Период анализа:</span><span class="info-value">${metricData.chartData.length} измерений (с 12:00 до 14:00)</span></div>
             <div class="info-item"><span class="info-label">Дата формирования:</span><span class="info-value">${new Date().toLocaleString('ru-RU')}</span></div>
             <div class="info-item"><span class="info-label">Источник данных:</span><span class="info-value">Датчики / Система мониторинга</span></div>
             <div class="info-item"><span class="info-label">Количество измерений:</span><span class="info-value">${metricData.chartData.length}</span></div>
@@ -535,7 +609,9 @@ const generateFullReportHTML = () => {
         <!-- 7. Динамика показателя за период -->
         <h2>7. Динамика показателя за период</h2>
         <table>
-          <thead><tr><th>День</th><th>Значение</th><th>Норма</th><th>Отклонение</th><th>Статус</th></tr></thead>
+          <thead>
+            <tr><th>Время</th><th>Значение</th><th>Норма</th><th>Отклонение</th><th>Статус</th></tr>
+          </thead>
           <tbody>
             ${metricData.chartData.map(item => {
               const deviation = item.value - stats.avg
@@ -667,47 +743,24 @@ const generateFullReportHTML = () => {
   `
 }
 
-  const formatUnit = () => {
-    if (metricData.title.includes("Температура")) return "°C"
-    if (metricData.title.includes("Аммиак")) return " ppm"
-    if (metricData.title.includes("Вес")) return metricData.currentValue.includes("кг") ? " кг" : " г"
-    if (metricData.title.includes("%")) return "%"
-    return ""
-  }
-
-  // ========== ОБНОВЛЕННЫЙ ПОЛНЫЙ ОТЧЕТ ==========
   const handleFullReport = () => {
     const printWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes')
     if (printWindow) {
       printWindow.document.write(generateFullReportHTML())
       printWindow.document.close()
       printWindow.focus()
-      printWindow.onbeforeunload = () => { window.focus() }
     }
   }
 
-  // PDF отчет (компактный)
   const handlePDFReport = () => {
-  const pdfWindow = window.open('', '_blank', 'width=800,height=600')
-  if (pdfWindow) {
-    pdfWindow.document.write(generateFullReportHTML())
-    pdfWindow.document.close()
-    
-    // Автоматически вызвать печать/сохранение
-    pdfWindow.print()
-    pdfWindow.close()
-    // Не закрываем окно сразу, но основная страница активна
-    // pdfWindow.onafterprint = () => {
-    //   pdfWindow.close()
-    //   window.focus() // Возвращаем фокус на основную страницу
-    // }
+    const pdfWindow = window.open('', '_blank', 'width=800,height=600')
+    if (pdfWindow) {
+      pdfWindow.document.write(generateFullReportHTML())
+      pdfWindow.document.close()
+      pdfWindow.print()
+      pdfWindow.close()
+    }
   }
-}
-
-  // Excel отчет (CSV экспорт)
- // ========== Excel отчет (CSV экспорт) с фильтрами и статистикой ==========
-
-  // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -742,31 +795,23 @@ const generateFullReportHTML = () => {
     }
   }
 
-  const formatYAxis = (value: number) => {
-    if (metricData.title.includes("Температура")) return `${value}°C`
-    if (metricData.title.includes("FCR") || metricData.title.includes("Конверсия")) return value.toString()
-    if (metricData.title.includes("Аммиак")) return `${value} ppm`
-    if (metricData.title.includes("Вес")) return metricData.currentValue.includes("кг") ? `${value} кг` : `${value} г`
-    if (metricData.title.includes("Потребление корма")) return metricData.currentValue.includes("кг") ? `${value} кг` : `${value} г`
-    if (metricData.title.includes("Потребление воды")) return metricData.currentValue.includes("мл") ? `${value} мл` : `${value} л`
-    return `${value}%`
-  }
-
-  const formatTooltip = (value: number) => {
-    if (metricData.title.includes("Температура")) return [`${value}°C`, metricData.title]
-    if (metricData.title.includes("FCR") || metricData.title.includes("Конверсия")) return [value.toString(), metricData.title]
-    if (metricData.title.includes("Аммиак")) return [`${value} ppm`, metricData.title]
-    if (metricData.title.includes("Вес")) {
-      const unit = metricData.currentValue.includes("кг") ? "кг" : "г"
-      return [`${value} ${unit}`, metricData.title]
+  // Функция обновления задач
+  const refreshTasks = async () => {
+    try {
+      const response = await fetch(`/api/tasks?metricId=${activeMetric}`)
+      const text = await response.text()
+      if (text) {
+        const data = JSON.parse(text)
+        setMetricTasks(data.tasks || [])
+      }
+    } catch (error) {
+      console.error("Ошибка обновления задач:", error)
     }
-    return [`${value}`, metricData.title]
   }
 
   return (
     <>
       <aside className="dashboard-panel p-5 md:p-6">
-        {/* ... остальной JSX (без изменений) ... */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
@@ -812,23 +857,21 @@ const generateFullReportHTML = () => {
         </div>
 
         <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 7 дней</h3>
-         
-            <GrafanaStyleChart
-              title={metricData.title}
-              data={metricData.chartData}
-              dataKey="value"
-              xAxisKey="day"
-              unit={formatUnit()}
-              color={getChartColor(metricData.status)}
-              onExpand={() => setIsChartModalOpen(true)}
-              targetMin={stats.targetMin}
-              targetMax={stats.targetMax}
-            />
-          </div>
-        
+          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 2 часа</h3>
+          <GrafanaStyleChart
+            title={metricData.title}
+            data={metricData.chartData}
+            dataKey="value"
+            xAxisKey="day"
+            unit={formatUnit()}
+            color={getChartColor(metricData.status)}
+            onExpand={() => setIsChartModalOpen(true)}
+            targetMin={stats.targetMin}
+            targetMax={stats.targetMax}
+          />
+        </div>
 
-        <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+        {/* <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
           <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
           <div className="mt-4 space-y-3">
             {metricData.problemLocations.length === 0 ? (
@@ -860,9 +903,106 @@ const generateFullReportHTML = () => {
               ))
             )}
           </div>
+        </div> */}
+
+        {/* НОВАЯ СЕКЦИЯ: Связанные задачи */}
+        <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              Связанные задачи
+              {metricTasks.length > 0 && (
+                <span className="ml-2 text-xs text-zinc-500">({metricTasks.length})</span>
+              )}
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsTaskModalOpen(true)}
+              className="rounded-full bg-zinc-950 text-white hover:white dark:bg-white dark:text-white dark:hover:white"
+            >
+              <ClipboardPlus className="size-4" />
+              Создать задачу
+            </Button>
+          </div>
+
+          {isLoadingTasks ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-500"></div>
+            </div>
+          ) : metricTasks.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-zinc-200 dark:border-white/10 p-6 text-center">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Нет связанных задач
+              </p>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => setIsTaskModalOpen(true)}
+                className="mt-2 text-xs"
+              >
+                Создать первую задачу
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {metricTasks.map((task) => {
+                const StatusIcon = taskStatusConfig[task.status]?.icon || PlayCircle
+                const isOverdue = task.status !== "completed" && new Date(task.deadline) < new Date()
+                const displayStatus = isOverdue ? "overdue" : task.status
+                
+                return (
+                  <div
+                    key={task.id}
+                    className="rounded-xl border border-zinc-200 dark:border-white/8 p-4 hover:bg-zinc-50 dark:hover:bg-white/4 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                            {task.title}
+                          </h4>
+                          <Badge className={cn("text-xs", taskStatusConfig[displayStatus]?.bg)}>
+                            <StatusIcon className="size-3 mr-1" />
+                            {taskStatusConfig[displayStatus]?.label || task.status}
+                          </Badge>
+                        </div>
+                        {task.description && (
+                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                            {task.description}
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                          <div className="flex items-center gap-1">
+                            <User className="size-3" />
+                            <span>{task.responsible || "Не назначен"}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <CalendarIcon className="size-3" />
+                            <span className={isOverdue ? "text-red-500 font-medium" : ""}>
+                              {formatTaskDate(task.deadline)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className={cn("size-2 rounded-full", taskPriorityConfig[task.priority]?.dot || "bg-gray-400")} />
+                            <span className="capitalize">{taskPriorityConfig[task.priority]?.label || task.priority}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {task.incidentId && (
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          Инцидент: {task.incidentId}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {metricData.relatedIncident && (
+        {/* {metricData.relatedIncident && (
           <div className="mt-5 rounded-[24px] border border-amber-500/20 bg-amber-500/8 p-5">
             <div className="flex gap-3">
               <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
@@ -876,7 +1016,7 @@ const generateFullReportHTML = () => {
               </div>
             </div>
           </div>
-        )}
+        )} */}
 
         {/* Кнопки */}
         <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -888,14 +1028,14 @@ const generateFullReportHTML = () => {
             <FileText className="size-4" />
             Отчеты
           </Button>
-          <Button 
+          {/* <Button 
             onClick={() => setIsTaskModalOpen(true)}
             className="rounded-full bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
           >
             <ClipboardPlus className="size-4" />
             Создать задачу
-          </Button>
-          {onNavigateToTasks && (
+          </Button> */}
+          {/* {onNavigateToTasks && (
             <Button
               variant="outline"
               onClick={onNavigateToTasks}
@@ -903,7 +1043,7 @@ const generateFullReportHTML = () => {
             >
               Все задачи
             </Button>
-          )}
+          )} */}
         </div>
       </aside>
 
@@ -920,6 +1060,7 @@ const generateFullReportHTML = () => {
         metricTitle={metricData.title}
         metricId={activeMetric}
         currentValue={metricData.currentValue}
+        //onTaskCreated={refreshTasks}
       />
 
       <FullChartModal
