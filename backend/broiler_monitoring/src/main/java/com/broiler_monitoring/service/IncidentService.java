@@ -1,12 +1,17 @@
 package com.broiler_monitoring.service;
 
 
+import com.broiler_monitoring.dto.AssignIncidentRequest;
+import com.broiler_monitoring.entity.AppUser;
 import com.broiler_monitoring.entity.Incident;
+import com.broiler_monitoring.entity.IncidentHistory;
 import com.broiler_monitoring.entity.Notification;
 import com.broiler_monitoring.enumerated.IncidentPriority;
 import com.broiler_monitoring.enumerated.IncidentSource;
 import com.broiler_monitoring.enumerated.IncidentStatus;
 import com.broiler_monitoring.enumerated.NotificationStatus;
+import com.broiler_monitoring.repository.AppUserRepository;
+import com.broiler_monitoring.repository.IncidentHistoryRepository;
 import com.broiler_monitoring.repository.IncidentRepository;
 import com.broiler_monitoring.repository.NotificationRepository;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,22 +19,37 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class IncidentService {
 
     private static final DateTimeFormatter INCIDENT_CODE_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final UUID DEFAULT_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final String DEFAULT_USER_NAME = "Павел Романов";
+    private static final String DEFAULT_USER_ROLE = "Директор по качеству";
 
     private final IncidentRepository repository;
     private final NotificationRepository notificationRepository;
+    private final AppUserRepository userRepository;
+    private final IncidentHistoryRepository historyRepository;
 
-    public IncidentService(IncidentRepository repository, NotificationRepository notificationRepository){
+    public IncidentService(
+            IncidentRepository repository,
+            NotificationRepository notificationRepository,
+            AppUserRepository userRepository,
+            IncidentHistoryRepository historyRepository
+    ){
         this.repository = repository;
         this.notificationRepository = notificationRepository;
+        this.userRepository = userRepository;
+        this.historyRepository = historyRepository;
     }
 
     public List<Incident> findAll(){
@@ -118,6 +138,55 @@ public class IncidentService {
         return repository.save(incident);
     }
 
+    @Transactional
+    public Incident assign(UUID id, AssignIncidentRequest request){
+        Incident incident = getById(id);
+
+        if (incident.getStatus() == IncidentStatus.IN_PROGRESS || incident.getStatus() == IncidentStatus.CLOSED || incident.getStatus() == IncidentStatus.RESOLVED){
+            String assignee = firstNotBlank(incident.getResponsible(), "другим пользователем");
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Этот инцидент уже взят в работу пользователем %s".formatted(assignee));
+        }
+
+        UUID userId = request != null && request.getUserId() != null ? request.getUserId() : DEFAULT_USER_ID;
+        String userName = request != null ? firstNotBlank(request.getUserName(), DEFAULT_USER_NAME) : DEFAULT_USER_NAME;
+        String role = request != null ? firstNotBlank(request.getRole(), DEFAULT_USER_ROLE) : DEFAULT_USER_ROLE;
+
+        validateRoleForIncident(incident, role);
+
+        AppUser user = userRepository.findById(userId)
+                .map(existingUser -> {
+                    existingUser.setFullName(userName);
+                    existingUser.setRole(role);
+                    return existingUser;
+                })
+                .orElseGet(() -> new AppUser(userId, userName, role));
+        userRepository.save(user);
+
+        LocalDateTime startedAt = LocalDateTime.now();
+        incident.setStatus(IncidentStatus.IN_PROGRESS);
+        incident.setAssigneeId(user.getId());
+        incident.setAssigneeRole(user.getRole());
+        incident.setResponsible(user.getFullName());
+        incident.setStartedAt(startedAt);
+
+        if (incident.getCreatedAt() != null){
+            incident.setReactionMinutes(Duration.between(incident.getCreatedAt(), startedAt).toMinutes());
+        }
+
+        Incident savedIncident = repository.save(incident);
+        historyRepository.save(new IncidentHistory(
+                savedIncident.getId(),
+                "ASSIGNED",
+                user.getId(),
+                user.getFullName(),
+                "Пользователь %s взял инцидент в работу".formatted(user.getFullName())
+        ));
+
+        return savedIncident;
+    }
+
     private String firstNotBlank(String value, String defaultValue){
         return value != null && !value.isBlank() ? value : defaultValue;
     }
@@ -131,6 +200,37 @@ public class IncidentService {
 
     private IncidentPriority mapNotificationPriority(Notification notification){
         return IncidentPriority.valueOf(notification.getPriority().name());
+    }
+
+    private void validateRoleForIncident(Incident incident, String role){
+        Set<String> allowedRoles = getAllowedRoles(incident);
+
+        if (!allowedRoles.contains(role)){
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Роль '%s' не может взять этот тип инцидента в работу".formatted(role));
+        }
+    }
+
+    private Set<String> getAllowedRoles(Incident incident){
+        String payload = "%s %s".formatted(
+                firstNotBlank(incident.getTitle(), ""),
+                firstNotBlank(incident.getDescription(), "")
+        ).toLowerCase(Locale.ROOT);
+
+        if (payload.contains("падеж") || payload.contains("вет")){
+            return Set.of("Ветврач", "Ветеринарная служба", "Директор по качеству");
+        }
+
+        if (payload.contains("оборуд") || payload.contains("вентил") || payload.contains("температур")){
+            return Set.of("Главный инженер", "Техническая служба", "Директор по качеству");
+        }
+
+        if (payload.contains("корм")){
+            return Set.of("Зоотехник", "Старший смены", "Директор по качеству");
+        }
+
+        return Set.of("Старший смены", "Оператор", "Директор по качеству");
     }
 
 }
