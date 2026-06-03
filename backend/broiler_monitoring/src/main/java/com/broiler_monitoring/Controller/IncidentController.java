@@ -1,5 +1,6 @@
 package com.broiler_monitoring.Controller;
 
+import com.broiler_monitoring.dto.AssignIncidentRequest;
 import com.broiler_monitoring.entity.Incident;
 import com.broiler_monitoring.enumerated.IncidentStatus;
 import com.broiler_monitoring.service.IncidentService;
@@ -49,6 +50,13 @@ public class IncidentController {
             @PathVariable UUID id,
             @RequestBody IncidentStatus status){
         return service.changeStatus(id, status);
+    }
+
+    @PatchMapping("/{id}/assign")
+    public Incident assign(
+            @PathVariable UUID id,
+            @RequestBody(required = false) AssignIncidentRequest request){
+        return service.assign(id, request);
     }
 
 

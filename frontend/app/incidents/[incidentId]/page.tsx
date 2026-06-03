@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
+import { useState } from "react"
 import { ArrowLeft, Download, ExternalLink, Link2, MessageSquare, RefreshCcw, UserPlus } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +20,22 @@ type DetailData = {
   metricSnapshot: string[]
   notes: string[]
   actions: string[]
+}
+
+type StoredIncident = {
+  id: string
+  title: string
+  description: string
+  type: string
+  status: string
+  priority: string
+  workshop: string
+  poultryHouse: string
+  zone: string
+  responsible: string
+  metricId: string
+  metricLabel: string
+  createdAt: string
 }
 
 const incidentDetails: Record<string, DetailData> = {
@@ -91,20 +108,51 @@ const incidentDetails: Record<string, DetailData> = {
 
 export default function IncidentDetailsPage() {
   const params = useParams<{ incidentId: string }>()
-  const incident = incidentDetails[params.incidentId]
+  const [storedIncident] = useState<StoredIncident | null>(() => {
+    const savedIncidents = JSON.parse(window.localStorage.getItem("createdIncidents") ?? "{}")
+    return savedIncidents[params.incidentId] ?? null
+  })
 
-  if (!incident) {
-    return (
-      <main className="min-h-screen bg-background px-4 py-5 md:px-8">
-        <div className="mx-auto max-w-[1000px] rounded-xl border border-zinc-200 bg-white p-6">
-          <p className="text-lg font-medium text-zinc-900">Инцидент не найден</p>
-          <Link href="/incidents" className="mt-3 inline-flex text-sm text-zinc-600 hover:text-zinc-900">
-            Вернуться к списку
-          </Link>
-        </div>
-      </main>
-    )
-  }
+  const incident =
+    incidentDetails[params.incidentId] ??
+    (storedIncident
+      ? {
+          id: storedIncident.id,
+          title: storedIncident.title,
+          context: `${storedIncident.description} Локация: ${storedIncident.workshop} / ${storedIncident.poultryHouse} / ${storedIncident.zone}. Ответственный: ${storedIncident.responsible}.`,
+          status: storedIncident.status,
+          priority: storedIncident.priority,
+          timeline: [
+            `${storedIncident.createdAt} — Инцидент создан вручную`,
+            "Система — Ожидается первичная реакция ответственного",
+          ],
+          metricContextTitle: `Показатель: ${storedIncident.metricLabel}`,
+          metricId: storedIncident.metricId,
+          metricSnapshot: [
+            `Категория: ${storedIncident.type}`,
+            `Локация: ${storedIncident.poultryHouse}`,
+            `Зона: ${storedIncident.zone}`,
+          ],
+          notes: [
+            storedIncident.description,
+            `Ответственный: ${storedIncident.responsible}`,
+            "Детальные графики доступны в технических показателях.",
+          ],
+          actions: ["Взять в работу", "Назначить ответственного", "Закрыть после проверки"],
+        }
+      : {
+          id: params.incidentId,
+          title: "Новый инцидент",
+          context: "Инцидент создан, подробности будут заполнены после синхронизации с реестром.",
+          status: "Новый",
+          priority: "Средний",
+          timeline: ["Система — карточка создана", "Ожидается заполнение деталей"],
+          metricContextTitle: "Показатель: состояние стада",
+          metricId: "mortality_21_30",
+          metricSnapshot: ["Данные уточняются", "Связь с показателем предварительная", "Требуется проверка"],
+          notes: ["Описание пока не заполнено.", "Можно вернуться в реестр и уточнить инцидент."],
+          actions: ["Назначить ответственного", "Добавить комментарий", "Закрыть после проверки"],
+        })
 
   return (
     <main className="min-h-screen bg-background px-4 py-5 md:px-8">
