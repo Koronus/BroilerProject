@@ -39,10 +39,95 @@ const priorityConfig: Record<TaskPriority, { label: string; dot: string }> = {
   low: { label: "Низкий", dot: "bg-green-500" },
 }
 
+// ========== ТЕСТОВЫЕ ДАННЫЕ ДЛЯ РАЗРАБОТКИ ==========
+const getMockTasks = (): Task[] => {
+  return [
+    {
+      id: "mock-1",
+      title: "Проверить температуру в бройлерной",
+      description: "Измерить температуру в 4-м птичнике, есть отклонения от нормы",
+      metricTitle: "Температура",
+      currentValue: "24.5°C",
+      priority: "high",
+      responsible: "Иванов Иван",
+      status: "inProgress",
+      createdAt: new Date().toISOString(),
+      deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: "mock-2",
+      title: "Проверить уровень аммиака",
+      description: "Превышение уровня аммиака в воздухе",
+      metricTitle: "Аммиак",
+      currentValue: "15 ppm",
+      priority: "critical",
+      responsible: "Петров Петр",
+      status: "new",
+      createdAt: new Date().toISOString(),
+      deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: "mock-3",
+      title: "Откалибровать датчики влажности",
+      description: "Датчики показывают некорректные значения",
+      metricTitle: "Влажность",
+      currentValue: "45%",
+      priority: "medium",
+      responsible: "Сидоров Сидор",
+      status: "review",
+      createdAt: new Date().toISOString(),
+      deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: "mock-4",
+      title: "Проверить систему вентиляции",
+      description: "Жалобы на духоту в помещении",
+      metricTitle: "Воздухообмен",
+      currentValue: "1200 м³/ч",
+      priority: "high",
+      responsible: "Кузнецов Николай",
+      status: "inProgress",
+      createdAt: new Date().toISOString(),
+      deadline: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: "mock-5",
+      title: "Замена фильтров в системе поения",
+      description: "Плановое обслуживание",
+      metricTitle: "Качество воды",
+      currentValue: "норма",
+      priority: "low",
+      responsible: "Михайлов Андрей",
+      status: "completed",
+      createdAt: new Date().toISOString(),
+      deadline: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: "mock-6",
+      title: "Проверить освещение в птичнике",
+      description: "Несколько ламп не работают",
+      metricTitle: "Освещение",
+      currentValue: "180 люкс",
+      priority: "medium",
+      responsible: "Смирнов Дмитрий",
+      status: "new",
+      createdAt: new Date().toISOString(),
+      deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+  ]
+}
+
+// Резервное получение задач из localStorage
 const getTasksFromStorage = (): Task[] => {
   if (typeof window === "undefined") return []
   const stored = localStorage.getItem("tasks")
-  return stored ? JSON.parse(stored) : []
+  if (stored && stored !== "[]") {
+    return JSON.parse(stored)
+  }
+  // Если в localStorage пусто, сохраняем тестовые данные
+  const mockTasks = getMockTasks()
+  localStorage.setItem("tasks", JSON.stringify(mockTasks))
+  return mockTasks
 }
 
 // Уникальные значения для фильтров
@@ -50,8 +135,80 @@ const getUniqueValues = (tasks: Task[], key: keyof Task) => {
   return [...new Set(tasks.map(task => task[key]).filter(Boolean))]
 }
 
+// Маппинг статусов
+const mapStatusFromBackend = (backendStatus: string): TaskStatus => {
+  const statusMap: Record<string, TaskStatus> = {
+    'OPEN': 'new',
+    'IN_PROGRESS': 'inProgress',
+    'RESOLVED': 'review',
+    'CLOSED': 'completed',
+    'OVERDUE': 'overdue'
+  }
+  return statusMap[backendStatus] || 'new'
+}
+
+const mapStatusToBackend = (frontendStatus: TaskStatus): string => {
+  const statusMap: Record<TaskStatus, string> = {
+    'new': 'OPEN',
+    'inProgress': 'IN_PROGRESS',
+    'review': 'RESOLVED',
+    'completed': 'CLOSED',
+    'overdue': 'OVERDUE'
+  }
+  return statusMap[frontendStatus] || 'OPEN'
+}
+
+// Маппинг приоритетов
+const mapPriorityFromBackend = (backendPriority: string): TaskPriority => {
+  const priorityMap: Record<string, TaskPriority> = {
+    'LOW': 'low',
+    'MEDIUM': 'medium',
+    'HIGH': 'high',
+    'CRITICAL': 'critical'
+  }
+  return priorityMap[backendPriority] || 'medium'
+}
+
+const mapPriorityToBackend = (frontendPriority: TaskPriority): string => {
+  const priorityMap: Record<TaskPriority, string> = {
+    'low': 'LOW',
+    'medium': 'MEDIUM',
+    'high': 'HIGH',
+    'critical': 'CRITICAL'
+  }
+  return priorityMap[frontendPriority] || 'MEDIUM'
+}
+
+// Загрузка задач с бэкенда
+const loadTasksFromBackend = async (): Promise<Task[] | null> => {
+  try {
+    const response = await fetch('/api/tasks')
+    if (!response.ok) return null
+    const backendTasks = await response.json()
+    
+    if (backendTasks && backendTasks.length > 0) {
+      return backendTasks.map((task: any) => ({
+        id: task.id,
+        title: task.nameTask,
+        description: task.descriptionTask,
+        metricTitle: task.nameIndicator,
+        currentValue: task.valueIndicator,
+        priority: mapPriorityFromBackend(task.priority),
+        responsible: task.responsible,
+        status: mapStatusFromBackend(task.status),
+        createdAt: task.createTask,
+        deadline: task.termTask,
+      }))
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   
   // Фильтры
@@ -65,28 +222,86 @@ export function TasksPage() {
   // Состояние для отображения активных фильтров
   const [showFilters, setShowFilters] = useState(false)
 
+  // Загрузка задач при монтировании компонента
   useEffect(() => {
-    const loadTasks = () => {
-      const updatedTasks = getTasksFromStorage().map(task => {
+    const loadTasks = async () => {
+      setLoading(true)
+      
+      // Пытаемся загрузить с бэкенда
+      const backendTasks = await loadTasksFromBackend()
+      
+      let loadedTasks: Task[]
+      
+      if (backendTasks && backendTasks.length > 0) {
+        loadedTasks = backendTasks
+        // Сохраняем в localStorage как резервную копию
+        localStorage.setItem("tasks", JSON.stringify(loadedTasks))
+      } else {
+        // Fallback на localStorage или мок-данные
+        loadedTasks = getTasksFromStorage()
+      }
+      
+      // Обновляем статус просроченных задач
+      const updatedTasks = loadedTasks.map(task => {
         if (task.status === "completed") return task
         const isOverdue = new Date(task.deadline) < new Date()
         return { ...task, status: isOverdue ? "overdue" : task.status }
       })
-      localStorage.setItem("tasks", JSON.stringify(updatedTasks))
+      
       setTasks(updatedTasks)
+      setLoading(false)
     }
 
     loadTasks()
-    const interval = setInterval(loadTasks, 60000)
+    
+    // Обновляем статус просроченных задач каждую минуту
+    const interval = setInterval(() => {
+      setTasks(prev => prev.map(task => {
+        if (task.status === "completed") return task
+        const isOverdue = new Date(task.deadline) < new Date()
+        return { ...task, status: isOverdue ? "overdue" : task.status }
+      }))
+    }, 60000)
+    
     return () => clearInterval(interval)
   }, [])
 
-  const updateTaskStatus = (taskId: string, newStatus: TaskStatus) => {
-    const updatedTasks = tasks.map(task =>
-      task.id === taskId ? { ...task, status: newStatus } : task
+  // Обновление статуса задачи
+  const updateTaskStatus = async (taskId: string, newStatus: TaskStatus) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+
+    // Обновляем локальное состояние сразу для лучшего UX
+    const updatedTasks = tasks.map(t =>
+      t.id === taskId ? { ...t, status: newStatus } : t
     )
-    localStorage.setItem("tasks", JSON.stringify(updatedTasks))
     setTasks(updatedTasks)
+    localStorage.setItem("tasks", JSON.stringify(updatedTasks))
+    
+    // Отправляем на бэкенд
+    try {
+      const updatedTask = {
+        id: taskId,
+        nameTask: task.title,
+        descriptionTask: task.description,
+        nameIndicator: task.metricTitle,
+        valueIndicator: task.currentValue,
+        measure: "шт",
+        priority: mapPriorityToBackend(task.priority),
+        responsible: task.responsible,
+        status: mapStatusToBackend(newStatus),
+        createTask: task.createdAt,
+        termTask: task.deadline
+      }
+
+      await fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedTask)
+      })
+    } catch {
+      // Игнорируем ошибки
+    }
   }
 
   // Получение уникальных значений для фильтров
@@ -171,13 +386,23 @@ export function TasksPage() {
     })
   }
 
+  if (loading) {
+    return (
+      <main className="flex min-h-0 flex-1 flex-col bg-background">
+        <div className="flex items-center justify-center h-full py-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-500"></div>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="border-b border-zinc-200 px-6 py-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">Задачи</h1>
-            <p className="mt-2 text-sm text-zinc-500"></p>
+            <p className="mt-2 text-sm text-zinc-500">Управление задачами и инцидентами</p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-[300px]">
@@ -211,19 +436,13 @@ export function TasksPage() {
         <div className="border-b border-zinc-200 bg-zinc-50/80 px-6 py-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-zinc-700">Расширенные фильтры</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={resetFilters}
-              className="text-xs text-zinc-500"
-            >
+            <Button variant="ghost" size="sm" onClick={resetFilters} className="text-xs text-zinc-500">
               <X className="size-3 mr-1" />
               Сбросить все
             </Button>
           </div>
           
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Фильтр по статусу */}
             <div>
               <label className="mb-1 block text-xs text-zinc-500">Статус</label>
               <select
@@ -240,7 +459,6 @@ export function TasksPage() {
               </select>
             </div>
 
-            {/* Фильтр по приоритету */}
             <div>
               <label className="mb-1 block text-xs text-zinc-500">Приоритет</label>
               <select
@@ -256,7 +474,6 @@ export function TasksPage() {
               </select>
             </div>
 
-            {/* Фильтр по ответственному */}
             <div>
               <label className="mb-1 block text-xs text-zinc-500">Ответственный</label>
               <select
@@ -271,7 +488,6 @@ export function TasksPage() {
               </select>
             </div>
 
-            {/* Фильтр по показателю */}
             <div>
               <label className="mb-1 block text-xs text-zinc-500">Связанный показатель</label>
               <select
@@ -287,7 +503,6 @@ export function TasksPage() {
             </div>
           </div>
 
-          {/* Фильтр по периоду */}
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs text-zinc-500">Дата создания (от)</label>
@@ -339,7 +554,7 @@ export function TasksPage() {
         </div>
       </section>
 
-      {/* Активные фильтры (чипы) */}
+      {/* Активные фильтры */}
       {activeFiltersCount > 0 && (
         <div className="flex flex-wrap gap-2 border-b border-zinc-200 px-6 py-3">
           <span className="text-xs text-zinc-500">Активные фильтры:</span>
@@ -452,7 +667,7 @@ export function TasksPage() {
                         </td>
                         <td className="px-4 py-3">
                           <span className={cn(isOverdue && "text-red-600 font-medium")}>
-                            {new Date(task.deadline).toLocaleString()}
+                            {formatDate(task.deadline)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-zinc-500">
