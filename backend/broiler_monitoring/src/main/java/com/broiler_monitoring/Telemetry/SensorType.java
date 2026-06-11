@@ -9,6 +9,7 @@ public enum SensorType {
     CO2,
     AMMONIA,
     WATER_FLOW,
+    LIGHT,
     FEED_CONSUMPTION,
     WEIGHT,
     VENTILATION,

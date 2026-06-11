@@ -32,7 +32,12 @@ public class SensorHttpSimulationScheduler {
             new SimulatedSensor("HUM-HOUSE-4-01", SensorType.HUMIDITY, "%", 50.0, 65.0, 44.0, 46.0),
             new SimulatedSensor("AMMONIA-HOUSE-4-01", SensorType.AMMONIA, "ppm", 0.0, 10.0, 12.0, 13.5),
             new SimulatedSensor("FEED-HOUSE-4-01", SensorType.FEED_CONSUMPTION, "kg/h", 35.0, 80.0, 95.0, 110.0),
-            new SimulatedSensor("WATER-HOUSE-4-01", SensorType.WATER_FLOW, "l/min", 8.0, 18.0, 22.0, 25.0)
+            new SimulatedSensor("WATER-HOUSE-4-01", SensorType.WATER_FLOW, "l/min", 8.0, 18.0, 22.0, 25.0),
+            new SimulatedSensor("LIGHT-01", SensorType.LIGHT, "lux", 25.0, 40.0, 18.0, 22.0),
+            new SimulatedSensor("LIGHT-02", SensorType.LIGHT, "lux", 25.0, 40.0, 20.0, 25.0),
+            new SimulatedSensor("LIGHT-03", SensorType.LIGHT, "lux", 25.0, 40.0, 22.0, 28.0),
+            new SimulatedSensor("LIGHT-04", SensorType.LIGHT, "lux", 25.0, 40.0, 28.0, 35.0),
+            new SimulatedSensor("LIGHT-05", SensorType.LIGHT, "lux", 25.0, 40.0, 5.0, 10.0)
     );
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
