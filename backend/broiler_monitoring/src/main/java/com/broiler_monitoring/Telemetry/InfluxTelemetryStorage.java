@@ -272,4 +272,27 @@ public class InfluxTelemetryStorage {
 
         return value;
     }
+    public void saveUniformity(String houseId, double minLux, double maxLux,
+                               double avgLux, double uniformity, int sensorCount) {
+
+        String lineProtocol = String.format(
+                "lighting_uniformity,houseId=%s min_lux=%.2f,max_lux=%.2f,avg_lux=%.2f,uniformity_percent=%.2f,sensor_count=%di %d",
+                escapeTagValue(houseId),
+                minLux, maxLux, avgLux, uniformity, sensorCount,
+                Instant.now().toEpochMilli() * 1000000L
+        );
+
+        HttpRequest request = HttpRequest.newBuilder(writeUri())
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "text/plain; charset=utf-8")
+                .POST(HttpRequest.BodyPublishers.ofString(lineProtocol, StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response = send(request);
+        if (response.statusCode() >= 300) {
+            log.error("Failed to save uniformity to InfluxDB: {}", response.body());
+        } else {
+            log.info("Saved uniformity: {}%, sensors: {}", uniformity, sensorCount);
+        }
+    }
 }
