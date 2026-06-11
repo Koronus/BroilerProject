@@ -35,27 +35,27 @@ public class TaskController {
 
     }
 
-    // POST - создать новую задачу (вам нужен этот метод)
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Task createTask(@RequestBody Task request) {
         return taskService.create(request);
     }
 
-    // PUT - обновить задачу полностью
+
     @PutMapping("/{id}")
     public Task updateTask(@PathVariable UUID id, @Valid @RequestBody Task request) {
         request.setId(id);
         return taskService.updateTask(request);
     }
 
-//    // PATCH - частичное обновление задачи
+//
 //    @PatchMapping("/{id}")
 //    public Task patchTask(@PathVariable UUID id, @RequestBody TaskRequest request) {
 //        return taskService.patchTask(id, request);
 //    }
 //
-//    // DELETE - удалить задачу
+//
 //    @DeleteMapping("/{id}")
 //    @ResponseStatus(HttpStatus.NO_CONTENT)
 //    public void deleteTask(@PathVariable UUID id) {

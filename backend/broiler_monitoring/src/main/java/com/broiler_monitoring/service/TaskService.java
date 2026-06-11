@@ -25,11 +25,11 @@ public class TaskService {
     }
 
     public Task updateTask(Task task) {
-        // Проверяем, существует ли задача
+
         if (!taskRepository.existsById(task.getId())) {
             throw new EntityNotFoundException("Task not found with id: " + task.getId());
         }
-        // Сохраняем обновленную задачу
+
         return taskRepository.save(task);
     }
 
