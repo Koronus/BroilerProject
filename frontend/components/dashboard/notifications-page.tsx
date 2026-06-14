@@ -26,6 +26,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { IncidentAttachmentPicker } from "@/components/dashboard/incident-attachment-picker"
 import {
   Dialog,
   DialogContent,
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { uploadIncidentAttachments } from "@/lib/incident-attachments"
 import { cn } from "@/lib/utils"
 
 type NotificationPriority = "critical" | "high" | "medium" | "low"
@@ -64,6 +66,7 @@ interface IncidentFormState {
 }
 
 interface CreatedIncident {
+  id?: string
   code?: string
 }
 
@@ -847,6 +850,7 @@ export function NotificationsPage() {
   const [assignNotificationId, setAssignNotificationId] = useState<string | null>(null)
   const [selectedResponsible, setSelectedResponsible] = useState(responsibleOptions[0])
   const [incidentForm, setIncidentForm] = useState<IncidentFormState>(emptyIncidentForm)
+  const [incidentFiles, setIncidentFiles] = useState<File[]>([])
   const [isCreatingIncident, setIsCreatingIncident] = useState(false)
   const [incidentError, setIncidentError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -1167,6 +1171,7 @@ export function NotificationsPage() {
     setIncidentNotificationId(null)
     setIncidentError(null)
     setIncidentForm(emptyIncidentForm)
+    setIncidentFiles([])
   }
 
   const updateIncidentForm = <Key extends keyof IncidentFormState>(
@@ -1220,6 +1225,19 @@ export function NotificationsPage() {
         createdIncident = null
       }
 
+      let attachmentComment: string | null = null
+
+      if (incidentFiles.length > 0) {
+        try {
+          await uploadIncidentAttachments(createdIncident?.id, incidentFiles)
+          attachmentComment = `Добавлены материалы: ${incidentFiles.length}`
+        } catch (uploadError) {
+          const uploadMessage =
+            uploadError instanceof Error ? uploadError.message : "неизвестная ошибка"
+          attachmentComment = `Инцидент создан, но материалы не загружены: ${uploadMessage}`
+        }
+      }
+
       setNotifications((currentNotifications) =>
         currentNotifications.map((notification) => {
           if (notification.id !== incidentNotification.id) {
@@ -1227,6 +1245,13 @@ export function NotificationsPage() {
           }
 
           const incidentCode = createdIncident?.code
+
+          if (attachmentComment) {
+            notification = {
+              ...notification,
+              comments: [...notification.comments, attachmentComment],
+            }
+          }
 
           return {
             ...notification,
@@ -1682,6 +1707,12 @@ export function NotificationsPage() {
                 className="min-h-24 border-zinc-300 bg-white text-zinc-900"
               />
             </label>
+
+            <IncidentAttachmentPicker
+              files={incidentFiles}
+              onFilesChange={setIncidentFiles}
+              disabled={isCreatingIncident}
+            />
 
             {incidentError && (
               <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
