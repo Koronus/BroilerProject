@@ -27,9 +27,11 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { IncidentAttachmentPicker } from "@/components/dashboard/incident-attachment-picker"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import { uploadIncidentAttachments } from "@/lib/incident-attachments"
 import { cn } from "@/lib/utils"
 
 type IncidentPriority = "critical" | "high" | "medium" | "low"
@@ -516,6 +518,7 @@ export function IncidentsPage() {
   const [statusFilter, setStatusFilter] = useState("Все статусы")
   const [priorityFilter, setPriorityFilter] = useState("Любой")
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isCreatingIncident, setIsCreatingIncident] = useState(false)
   const [isClosedExpanded, setIsClosedExpanded] = useState(false)
   const [createSuccessMessage, setCreateSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(true)
@@ -526,6 +529,7 @@ export function IncidentsPage() {
   const [newPriority, setNewPriority] = useState("Высокий")
   const [newDescription, setNewDescription] = useState("")
   const [newResponsible, setNewResponsible] = useState<string[]>(responsibleByCategory[categoryOptions[0]])
+  const [newIncidentFiles, setNewIncidentFiles] = useState<File[]>([])
 
   useEffect(() => {
     let isCancelled = false
@@ -637,7 +641,25 @@ export function IncidentsPage() {
     }
   }, [newHouse, currentZoneOptions, newZone])
 
+  const handleCreateOpenChange = (open: boolean) => {
+    if (isCreatingIncident) {
+      return
+    }
+
+    setIsCreateOpen(open)
+
+    if (!open) {
+      setNewIncidentFiles([])
+    }
+  }
+
   const handleCreateIncident = async () => {
+    if (isCreatingIncident) {
+      return
+    }
+
+    setIsCreatingIncident(true)
+
     try {
       const response = await fetch("/api/incidents", {
         method: "POST",
@@ -662,16 +684,31 @@ export function IncidentsPage() {
 
       const createdIncident = JSON.parse(responseBody) as BackendIncident
       const nextIncident = toIncident(createdIncident)
+      let attachmentMessage = ""
+
+      if (newIncidentFiles.length > 0) {
+        try {
+          await uploadIncidentAttachments(createdIncident.id, newIncidentFiles)
+          attachmentMessage = `. Материалы: ${newIncidentFiles.length}`
+        } catch (uploadError) {
+          const uploadMessage =
+            uploadError instanceof Error ? uploadError.message : "неизвестная ошибка"
+          attachmentMessage = `. Материалы не загружены: ${uploadMessage}`
+        }
+      }
 
       setIncidents((current) => sortIncidents([nextIncident, ...current]))
       setActiveIncidentId(nextIncident.id)
       setIsCreateOpen(false)
       setNewDescription("")
-      setCreateSuccessMessage(`Инцидент №${nextIncident.id} успешно создан и передан в работу`)
+      setNewIncidentFiles([])
+      setCreateSuccessMessage(`Инцидент №${nextIncident.id} успешно создан и передан в работу${attachmentMessage}`)
       setTimeout(() => setCreateSuccessMessage(""), 4000)
     } catch (error) {
       setCreateSuccessMessage(error instanceof Error ? error.message : "Не удалось создать инцидент")
       setTimeout(() => setCreateSuccessMessage(""), 4000)
+    } finally {
+      setIsCreatingIncident(false)
     }
   }
 
@@ -909,7 +946,7 @@ export function IncidentsPage() {
         </div>
       </div>
 
-      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+      <Sheet open={isCreateOpen} onOpenChange={handleCreateOpenChange}>
         <SheetContent side="right" className="w-full sm:max-w-[460px]">
           <SheetHeader>
             <SheetTitle>Создание инцидента</SheetTitle>
@@ -982,14 +1019,28 @@ export function IncidentsPage() {
                 ))}
               </select>
             </label>
+
+            <IncidentAttachmentPicker
+              files={newIncidentFiles}
+              onFilesChange={setNewIncidentFiles}
+              disabled={isCreatingIncident}
+            />
           </div>
 
           <SheetFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+            <Button
+              variant="outline"
+              disabled={isCreatingIncident}
+              onClick={() => handleCreateOpenChange(false)}
+            >
               Отмена
             </Button>
-            <Button onClick={handleCreateIncident} className="bg-zinc-950 text-white hover:bg-zinc-800">
-              Создать
+            <Button
+              disabled={isCreatingIncident}
+              onClick={handleCreateIncident}
+              className="bg-zinc-950 text-white hover:bg-zinc-800"
+            >
+              {isCreatingIncident ? "Создание..." : "Создать"}
             </Button>
           </SheetFooter>
         </SheetContent>

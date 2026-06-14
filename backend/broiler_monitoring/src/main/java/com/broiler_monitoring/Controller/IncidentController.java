@@ -1,8 +1,12 @@
 package com.broiler_monitoring.Controller;
 
+import com.broiler_monitoring.dto.IncidentAttachmentResponse;
 import com.broiler_monitoring.entity.Incident;
 import com.broiler_monitoring.enumerated.IncidentStatus;
+import com.broiler_monitoring.service.IncidentAttachmentService;
 import com.broiler_monitoring.service.IncidentService;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,9 +16,12 @@ import java.util.UUID;
 @RequestMapping("/api/v1/incident")
 public class IncidentController {
 
-    private IncidentService service;
-    public IncidentController(IncidentService service){
+    private final IncidentService service;
+    private final IncidentAttachmentService attachmentService;
+
+    public IncidentController(IncidentService service, IncidentAttachmentService attachmentService){
         this.service = service;
+        this.attachmentService = attachmentService;
     }
     @GetMapping
     public List<Incident> getIncident(){
@@ -42,6 +49,19 @@ public class IncidentController {
             @RequestBody(required = false) Incident incident
     ){
         return service.createFromNotification(notificationId, incident);
+    }
+
+    @GetMapping("/{id}/attachments")
+    public List<IncidentAttachmentResponse> getAttachments(@PathVariable UUID id){
+        return attachmentService.findByIncidentId(id);
+    }
+
+    @PostMapping(value = "/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public List<IncidentAttachmentResponse> uploadAttachments(
+            @PathVariable UUID id,
+            @RequestParam("files") List<MultipartFile> files
+    ){
+        return attachmentService.upload(id, files);
     }
 
     @PatchMapping("/{id}/status")
