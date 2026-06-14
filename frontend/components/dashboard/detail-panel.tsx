@@ -16,6 +16,14 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { metricsDetails } from "@/lib/metricks-detail"
+import {
+  LIGHTING_SENSOR_CODES,
+  buildLightingChartData,
+  formatLightingMetricValue,
+  getLightingMetricKind,
+  resolveLightingStatus,
+  type LightingTelemetryBySensorCode,
+} from "@/lib/lighting-metrics"
 import { CreateTaskModal } from "./create-task-modal"
 import { ReportsModal } from "./reports-modal"
 import { type BirdAgeGroup } from "@/components/dashboard/kpi-grid"
@@ -129,6 +137,7 @@ export function DetailPanel({
   const [isChartModalOpen, setIsChartModalOpen] = useState(false)
   const [chartType, setChartType] = useState<"area" | "line" | "bar">("area")
   const [liveReading, setLiveReading] = useState<TelemetryReading | null>(null)
+  const [lightingTelemetry, setLightingTelemetry] = useState<LightingTelemetryBySensorCode>({})
   const [metricTasks, setMetricTasks] = useState<MetricTask[]>([])
   const [isLoadingTasks, setIsLoadingTasks] = useState(false)
   
@@ -137,10 +146,45 @@ export function DetailPanel({
   useEffect(() => {
     let mounted = true
     const sensorCode = sensorCodeByMetricId[activeMetric]
+    const lightingKind = getLightingMetricKind(activeMetric)
 
     const loadTelemetry = async () => {
+      if (lightingKind) {
+        try {
+          const entries = await Promise.all(
+            LIGHTING_SENSOR_CODES.map(async (lightingSensorCode) => {
+              const response = await fetch(
+                `/api/telemetry/readings?sensorCode=${encodeURIComponent(lightingSensorCode)}&limit=13`,
+                { cache: "no-store" }
+              )
+
+              if (!response.ok) {
+                return [lightingSensorCode, []] as const
+              }
+
+              const readings = (await response.json()) as TelemetryReading[]
+              return [lightingSensorCode, readings] as const
+            })
+          )
+
+          if (mounted) {
+            setLightingTelemetry(Object.fromEntries(entries))
+            setLiveReading(null)
+          }
+        } catch {
+          if (mounted) {
+            setLightingTelemetry({})
+            setLiveReading(null)
+          }
+        }
+        return
+      }
+
       if (!sensorCode) {
-        if (mounted) setLiveReading(null)
+        if (mounted) {
+          setLiveReading(null)
+          setLightingTelemetry({})
+        }
         return
       }
 
@@ -163,10 +207,12 @@ export function DetailPanel({
         const readings = JSON.parse(text) as TelemetryReading[]
         if (mounted) {
           setLiveReading(readings[0] ?? null)
+          setLightingTelemetry({})
         }
       } catch {
         if (mounted) {
           setLiveReading(null)
+          setLightingTelemetry({})
         }
       }
     }
@@ -238,16 +284,34 @@ export function DetailPanel({
   }
 
   const liveSensorCode = sensorCodeByMetricId[activeMetric]
-  const currentLiveReading = liveReading?.sensorCode === liveSensorCode ? liveReading : null
-  const currentValue = currentLiveReading ? formatTelemetryValue(currentLiveReading) : metricData.currentValue
-  const currentStatus = currentLiveReading && liveSensorCode
-    ? resolveTelemetryStatus(liveSensorCode, currentLiveReading.value)
-    : metricData.status
+  const lightingKind = getLightingMetricKind(activeMetric)
 
-  metricData = {
-    ...metricData,
-    currentValue,
-    status: currentStatus,
+  if (lightingKind) {
+    const lightingChartData = buildLightingChartData(lightingTelemetry, lightingKind)
+    const latestLightingPoint = lightingChartData.at(-1)
+
+    metricData = {
+      ...metricData,
+      chartData: lightingChartData.length > 0 ? lightingChartData : metricData.chartData,
+      currentValue: latestLightingPoint
+        ? formatLightingMetricValue(lightingKind, latestLightingPoint.value)
+        : metricData.currentValue,
+      status: latestLightingPoint
+        ? resolveLightingStatus(lightingKind, latestLightingPoint.value)
+        : metricData.status,
+    }
+  } else {
+    const currentLiveReading = liveReading?.sensorCode === liveSensorCode ? liveReading : null
+    const currentValue = currentLiveReading ? formatTelemetryValue(currentLiveReading) : metricData.currentValue
+    const currentStatus = currentLiveReading && liveSensorCode
+      ? resolveTelemetryStatus(liveSensorCode, currentLiveReading.value)
+      : metricData.status
+
+    metricData = {
+      ...metricData,
+      currentValue,
+      status: currentStatus,
+    }
   }
 
   // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ФИЛЬТРОВ ==========
@@ -322,6 +386,8 @@ export function DetailPanel({
     if (metricData.title.includes("Температура")) return "°C"
     if (metricData.title.includes("Аммиак")) return " ppm"
     if (metricData.title.includes("Вес")) return metricData.currentValue.includes("кг") ? " кг" : " г"
+    if (metricData.title.includes("Равномерность освещения")) return ""
+    if (metricData.title.toLowerCase().includes("освещ")) return " лк"
     if (metricData.title.includes("%")) return "%"
     return ""
   }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import {
   AreaChart,
   Area,
@@ -63,49 +63,6 @@ export function GrafanaStyleChart({
     return value.toFixed(2)
   }
 
-  // Разделяем данные на сегменты для отрисовки разными цветами
-  const coloredSegments = useMemo(() => {
-    if (!data || data.length === 0 || targetMin === undefined || targetMax === undefined) {
-      return [{ data, color: color, isOutlier: false }]
-    }
-
-    const segments: { data: any[]; color: string; isOutlier: boolean }[] = []
-    let currentSegment: any[] = []
-    let currentIsOutlier: boolean = false
-
-    data.forEach((point, index) => {
-      const value = point[dataKey]
-      const isOutlier = value < targetMin || value > targetMax
-
-      if (currentSegment.length === 0) {
-        currentIsOutlier = isOutlier
-        currentSegment.push(point)
-      } else if (currentIsOutlier === isOutlier) {
-        currentSegment.push(point)
-      } else {
-        if (currentSegment.length > 0) {
-          segments.push({
-            data: [...currentSegment],
-            color: currentIsOutlier ? "#ef4444" : color,
-            isOutlier: currentIsOutlier,
-          })
-        }
-        currentSegment = [point]
-        currentIsOutlier = isOutlier
-      }
-    })
-
-    if (currentSegment.length > 0) {
-      segments.push({
-        data: [...currentSegment],
-        color: currentIsOutlier ? "#ef4444" : color,
-        isOutlier: currentIsOutlier,
-      })
-    }
-
-    return segments
-  }, [data, dataKey, targetMin, targetMax, color])
-
   // Компонент для зоны нормы
   const NormalRangeBand = () => {
     if (targetMin === undefined || targetMax === undefined || data.length === 0) return null
@@ -120,59 +77,6 @@ export function GrafanaStyleChart({
         ifOverflow="visible"
       />
     )
-  }
-
-  // Отрисовка сегментированной области (Area)
-  const renderColoredArea = () => {
-    return coloredSegments.map((segment, idx) => (
-      <Area
-        key={idx}
-        type="linear"
-        dataKey={dataKey}
-        data={segment.data}
-        stroke={segment.color}
-        fill={`${segment.color}20`}
-        strokeWidth={2}
-        connectNulls={true}
-        isAnimationActive={false}
-      />
-    ))
-  }
-
-  // Отрисовка сегментированной линии (Line)
-  const renderColoredLine = () => {
-    return coloredSegments.map((segment, idx) => (
-      <Line
-        key={idx}
-        type="monotone"
-        dataKey={dataKey}
-        data={segment.data}
-        stroke={segment.color}
-        strokeWidth={2}
-        dot={{ r: 3, fill: segment.color, stroke: segment.color }}
-        connectNulls={true}
-        isAnimationActive={false}
-      />
-    ))
-  }
-
-  // Отрисовка столбцов (Bar)
-  const renderColoredBar = () => {
-    return data.map((item, idx) => {
-      const value = item[dataKey]
-      const isOutlier = targetMin !== undefined && targetMax !== undefined && (value < targetMin || value > targetMax)
-      return (
-        <Bar
-          key={idx}
-          dataKey={dataKey}
-          data={[item]}
-          fill={isOutlier ? "#ef4444" : color}
-          radius={[4, 4, 0, 0]}
-          maxBarSize={50}
-          isAnimationActive={false}
-        />
-      )
-    })
   }
 
   // Форматтер для оси Y
@@ -216,7 +120,16 @@ export function GrafanaStyleChart({
             {showLegend && <Legend wrapperStyle={{ fontSize: "11px" }} />}
             
             <NormalRangeBand />
-            {renderColoredArea()}
+            <Area
+              type="linear"
+              dataKey={dataKey}
+              name={title}
+              stroke={color}
+              fill={`${color}20`}
+              strokeWidth={2}
+              connectNulls={true}
+              isAnimationActive={false}
+            />
           </AreaChart>
         )
       case "line":
@@ -235,7 +148,16 @@ export function GrafanaStyleChart({
             {showLegend && <Legend />}
             
             <NormalRangeBand />
-            {renderColoredLine()}
+            <Line
+              type="monotone"
+              dataKey={dataKey}
+              name={title}
+              stroke={color}
+              strokeWidth={2}
+              dot={{ r: 3, fill: color, stroke: color }}
+              connectNulls={true}
+              isAnimationActive={false}
+            />
           </LineChart>
         )
       case "bar":
@@ -253,7 +175,14 @@ export function GrafanaStyleChart({
             {showLegend && <Legend />}
             
             <NormalRangeBand />
-            {renderColoredBar()}
+            <Bar
+              dataKey={dataKey}
+              name={title}
+              fill={color}
+              radius={[4, 4, 0, 0]}
+              maxBarSize={50}
+              isAnimationActive={false}
+            />
           </BarChart>
         )
       default:
@@ -281,7 +210,16 @@ export function GrafanaStyleChart({
             {showLegend && <Legend />}
             
             <NormalRangeBand />
-            {renderColoredArea()}
+            <Area
+              type="linear"
+              dataKey={dataKey}
+              name={title}
+              stroke={color}
+              fill={`${color}20`}
+              strokeWidth={2}
+              connectNulls={true}
+              isAnimationActive={false}
+            />
           </AreaChart>
         )
     }

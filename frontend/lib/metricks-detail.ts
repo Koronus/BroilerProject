@@ -297,3 +297,76 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     },
   },
 }
+
+const toChartData = (values: number[]) =>
+  timeLabels.map((day, index) => ({
+    day,
+    value: values[index],
+  }))
+
+Object.assign(metricsDetails, {
+  lighting_min_0_3: {
+    title: "Минимальная освещенность",
+    currentValue: "25 лк",
+    targetRange: "25-40 лк",
+    status: "normal",
+    chartData: toChartData([25.0, 25.8, 26.1, 26.4, 25.9, 26.2, 26.0, 26.3, 25.7, 26.1, 26.4, 26.2, 26.0]),
+    problemLocations: [],
+  },
+  lighting_max_0_3: {
+    title: "Максимальная освещенность",
+    currentValue: "39 лк",
+    targetRange: "25-40 лк",
+    status: "normal",
+    chartData: toChartData([38.0, 38.4, 39.0, 39.2, 38.8, 39.0, 39.4, 39.1, 38.7, 39.0, 39.3, 39.1, 39.0]),
+    problemLocations: [],
+  },
+  lighting_avg_0_3: {
+    title: "Средняя освещенность",
+    currentValue: "32 лк",
+    targetRange: "25-40 лк",
+    status: "normal",
+    chartData: toChartData([31.8, 32.2, 32.6, 32.9, 32.5, 32.7, 32.9, 32.6, 32.3, 32.5, 32.8, 32.6, 32.6]),
+    problemLocations: [],
+  },
+  lighting_uniformity_0_3: {
+    title: "Равномерность освещения",
+    currentValue: "0.80",
+    targetRange: "> 0.70",
+    status: "normal",
+    chartData: toChartData([0.79, 0.80, 0.80, 0.80, 0.80, 0.80, 0.79, 0.81, 0.80, 0.80, 0.80, 0.80, 0.80]),
+    problemLocations: [],
+  },
+  lighting_min_21_30: {
+    title: "Минимальная освещенность",
+    currentValue: "25 лк",
+    targetRange: "25-40 лк",
+    status: "normal",
+    chartData: toChartData([25.0, 25.4, 25.8, 26.0, 25.6, 25.9, 26.1, 25.8, 25.5, 25.8, 26.0, 25.7, 25.8]),
+    problemLocations: [],
+  },
+  lighting_max_21_30: {
+    title: "Максимальная освещенность",
+    currentValue: "40 лк",
+    targetRange: "25-40 лк",
+    status: "normal",
+    chartData: toChartData([38.8, 39.2, 39.5, 39.8, 39.4, 39.6, 40.0, 39.5, 39.1, 39.4, 39.7, 39.5, 39.6]),
+    problemLocations: [],
+  },
+  lighting_avg_21_30: {
+    title: "Средняя освещенность",
+    currentValue: "32 лк",
+    targetRange: "25-40 лк",
+    status: "normal",
+    chartData: toChartData([31.6, 31.9, 32.2, 32.4, 32.1, 32.3, 32.5, 32.2, 31.9, 32.1, 32.4, 32.2, 32.2]),
+    problemLocations: [],
+  },
+  lighting_uniformity_21_30: {
+    title: "Равномерность освещения",
+    currentValue: "0.80",
+    targetRange: "> 0.70",
+    status: "normal",
+    chartData: toChartData([0.79, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80]),
+    problemLocations: [],
+  },
+} satisfies Record<string, MetricDetailData>)

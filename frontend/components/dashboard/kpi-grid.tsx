@@ -6,12 +6,20 @@ import {
   CheckCircle,
   Droplet,
   Droplets,
+  Lightbulb,
   Scale,
   Thermometer,
   Utensils,
   Wheat,
   Wind,
 } from "lucide-react"
+import {
+  LIGHTING_SENSOR_CODES,
+  calculateLightingAggregate,
+  formatLightingMetricValue,
+  getLightingMetricKind,
+  resolveLightingStatus,
+} from "@/lib/lighting-metrics"
 import { categories } from "./category-sidebar"
 import { KpiCard } from "./kpi-card"
 
@@ -51,6 +59,10 @@ const metricsByAge: Record<BirdAgeGroup, Metric[]> = {
     { id: "temperature_0_3", icon: Thermometer, title: "Температура", value: "40.2°C", norm: "40.0-40.8", trend: "up", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "0-3" },
     { id: "humidity_0_3", icon: Droplets, title: "Влажность", value: "70%", norm: "65-75%", trend: "stable", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "0-3" },
     { id: "ammonia_0_3", icon: Wind, title: "Аммиак", value: "8 ppm", norm: "< 5 ppm", trend: "up", trendGood: "down", status: "warning", categoryId: "microclimate", ageGroup: "0-3" },
+    { id: "lighting_min_0_3", icon: Lightbulb, title: "Минимальная освещенность", value: "25 лк", norm: "25-40 лк", trend: "stable", trendGood: "up", status: "normal", categoryId: "lighting", ageGroup: "0-3" },
+    { id: "lighting_max_0_3", icon: Lightbulb, title: "Максимальная освещенность", value: "40 лк", norm: "25-40 лк", trend: "stable", trendGood: "down", status: "normal", categoryId: "lighting", ageGroup: "0-3" },
+    { id: "lighting_avg_0_3", icon: Lightbulb, title: "Средняя освещенность", value: "32 лк", norm: "25-40 лк", trend: "stable", trendGood: "up", status: "normal", categoryId: "lighting", ageGroup: "0-3" },
+    { id: "lighting_uniformity_0_3", icon: Lightbulb, title: "Равномерность освещения", value: "0.78", norm: "> 0.70", trend: "stable", trendGood: "up", status: "normal", categoryId: "lighting", ageGroup: "0-3" },
     { id: "feed_intake_0_3", icon: Utensils, title: "Потребление корма", value: "15 г", norm: "14-18 г", trend: "up", trendGood: "up", status: "normal", categoryId: "consumption", ageGroup: "0-3" },
     { id: "water_intake_0_3", icon: Droplet, title: "Потребление воды", value: "30 мл", norm: "28-35 мл", trend: "up", trendGood: "up", status: "normal", categoryId: "consumption", ageGroup: "0-3" },
     { id: "average_weight_0_3", icon: Scale, title: "Средний вес", value: "45 г", norm: "42-48 г", trend: "up", trendGood: "up", status: "normal", categoryId: "production", ageGroup: "0-3" },
@@ -61,6 +73,10 @@ const metricsByAge: Record<BirdAgeGroup, Metric[]> = {
     { id: "temperature_21_30", icon: Thermometer, title: "Температура", value: "39.8°C", norm: "39.4-40.5", trend: "up", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "21-30" },
     { id: "humidity_21_30", icon: Droplets, title: "Влажность", value: "65%", norm: "55-70%", trend: "down", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "21-30" },
     { id: "ammonia_21_30", icon: Wind, title: "Аммиак", value: "15 ppm", norm: "< 10 ppm", trend: "up", trendGood: "down", status: "warning", categoryId: "microclimate", ageGroup: "21-30" },
+    { id: "lighting_min_21_30", icon: Lightbulb, title: "Минимальная освещенность", value: "25 лк", norm: "25-40 лк", trend: "stable", trendGood: "up", status: "normal", categoryId: "lighting", ageGroup: "21-30" },
+    { id: "lighting_max_21_30", icon: Lightbulb, title: "Максимальная освещенность", value: "40 лк", norm: "25-40 лк", trend: "stable", trendGood: "down", status: "normal", categoryId: "lighting", ageGroup: "21-30" },
+    { id: "lighting_avg_21_30", icon: Lightbulb, title: "Средняя освещенность", value: "32 лк", norm: "25-40 лк", trend: "stable", trendGood: "up", status: "normal", categoryId: "lighting", ageGroup: "21-30" },
+    { id: "lighting_uniformity_21_30", icon: Lightbulb, title: "Равномерность освещения", value: "0.78", norm: "> 0.70", trend: "stable", trendGood: "up", status: "normal", categoryId: "lighting", ageGroup: "21-30" },
     { id: "feed_intake_21_30", icon: Utensils, title: "Потребление корма", value: "125 г", norm: "120-130 г", trend: "up", trendGood: "down", status: "normal", categoryId: "consumption", ageGroup: "21-30" },
     { id: "water_intake_21_30", icon: Droplet, title: "Потребление воды", value: "250 мл", norm: "240-260 мл", trend: "up", trendGood: "down", status: "normal", categoryId: "consumption", ageGroup: "21-30" },
     { id: "average_weight_21_30", icon: Scale, title: "Средний вес", value: "1.8 кг", norm: "1.7-1.9 кг", trend: "up", trendGood: "up", status: "normal", categoryId: "production", ageGroup: "21-30" },
@@ -78,6 +94,7 @@ const telemetrySensorCodes = [
   "AMMONIA-HOUSE-4-01",
   "FEED-HOUSE-4-01",
   "WATER-HOUSE-4-01",
+  ...LIGHTING_SENSOR_CODES,
 ] as const
 
 const sensorCodeByMetricId: Record<string, string> = {
@@ -113,9 +130,13 @@ const formatTelemetryValue = (reading: TelemetryReading) => {
 }
 
 const resolveTelemetryTrend = (current: TelemetryReading, previous?: TelemetryReading): Metric["trend"] => {
-  if (!previous) return "stable"
-  if (current.value > previous.value) return "up"
-  if (current.value < previous.value) return "down"
+  return resolveValueTrend(current.value, previous?.value)
+}
+
+const resolveValueTrend = (currentValue: number, previousValue?: number): Metric["trend"] => {
+  if (previousValue === undefined) return "stable"
+  if (currentValue > previousValue) return "up"
+  if (currentValue < previousValue) return "down"
 
   return "stable"
 }
@@ -134,6 +155,27 @@ const resolveTelemetryStatus = (sensorCode: string, value: number): Metric["stat
 
 const applyTelemetryToMetrics = (items: Metric[], telemetry: TelemetryBySensorCode) =>
   items.map((metric) => {
+    const lightingKind = getLightingMetricKind(metric.id)
+
+    if (lightingKind) {
+      const currentAggregate = calculateLightingAggregate(telemetry)
+      const previousAggregate = calculateLightingAggregate(telemetry, 1)
+
+      if (!currentAggregate) {
+        return metric
+      }
+
+      const currentValue = currentAggregate[lightingKind]
+      const previousValue = previousAggregate?.[lightingKind]
+
+      return {
+        ...metric,
+        value: formatLightingMetricValue(lightingKind, currentValue),
+        trend: resolveValueTrend(currentValue, previousValue),
+        status: resolveLightingStatus(lightingKind, currentValue),
+      }
+    }
+
     const sensorCode = sensorCodeByMetricId[metric.id]
     const readings = sensorCode ? telemetry[sensorCode] : undefined
     const latestReading = readings?.[0]
