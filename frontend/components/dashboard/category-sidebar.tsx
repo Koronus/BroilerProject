@@ -15,6 +15,7 @@ interface Category {
 export const categories: Category[] = [
   { id: "microclimate", name: "Микроклимат", status: "green" },
   { id: "production", name: "Производственные параметры", status: "green" },
+  { id: "lighting", name: "Освещенность", status: "green" },
   { id: "consumption", name: "Потребление ресурсов", status: "green" },
   { id: "herd", name: "Состояние стада", status: "green" },
 ]
@@ -79,7 +80,7 @@ export function CategorySidebar({
           </div>
           <span className="dashboard-chip shrink-0 whitespace-nowrap">
             <Activity className="size-3.5" />
-            {categories.length} раздела
+            {categories.length} разделов
           </span>
         </div>
 

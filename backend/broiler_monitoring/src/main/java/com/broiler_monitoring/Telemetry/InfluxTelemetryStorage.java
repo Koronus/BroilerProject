@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -276,6 +277,7 @@ public class InfluxTelemetryStorage {
                                double avgLux, double uniformity, int sensorCount) {
 
         String lineProtocol = String.format(
+                Locale.US,
                 "lighting_uniformity,houseId=%s min_lux=%.2f,max_lux=%.2f,avg_lux=%.2f,uniformity_percent=%.2f,sensor_count=%di %d",
                 escapeTagValue(houseId),
                 minLux, maxLux, avgLux, uniformity, sensorCount,
