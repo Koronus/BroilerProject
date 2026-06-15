@@ -4,12 +4,12 @@ package com.broiler_monitoring.service;
 import com.broiler_monitoring.entity.Notification;
 import com.broiler_monitoring.enumerated.NotificationStatus;
 import com.broiler_monitoring.repository.NotificationRepository;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.UUID;
 
 @Service
@@ -20,7 +20,7 @@ public class NotificationService {
     }
 
     public List<Notification> findAll() {
-        return repository.findAll();
+        return repository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
     public Notification getById(UUID id) {

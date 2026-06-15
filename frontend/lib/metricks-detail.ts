@@ -13,7 +13,49 @@ export interface MetricDetailData {
   }
 }
 
+// Временные метки с 12:00 до 14:00 с интервалом 10 минут
+// Всего 13 значений: 12:00, 12:10, 12:20, 12:30, 12:40, 12:50, 13:00, 13:10, 13:20, 13:30, 13:40, 13:50, 14:00
+const timeLabels = [
+  "12:00", "12:10", "12:20", "12:30", "12:40", "12:50",
+  "13:00", "13:10", "13:20", "13:30", "13:40", "13:50", "14:00"
+]
+
 export const metricsDetails: Record<string, MetricDetailData> = {
+  lighting_schedule_compliance_0_3: {
+    title: "Соблюдение светового режима",
+    currentValue: "96%",
+    targetRange: "Отклонение ≤10 мин, темнота ≥6 ч",
+    status: "normal",
+    chartData: [
+      { day: "12:00", value: 98 }, { day: "12:10", value: 97 }, { day: "12:20", value: 96 },
+      { day: "12:30", value: 96 }, { day: "12:40", value: 97 }, { day: "12:50", value: 96 },
+      { day: "13:00", value: 96 }, { day: "13:10", value: 95 }, { day: "13:20", value: 96 },
+      { day: "13:30", value: 97 }, { day: "13:40", value: 96 }, { day: "13:50", value: 96 },
+      { day: "14:00", value: 96 }
+    ],
+    problemLocations: [],
+  },
+  lighting_schedule_compliance_21_30: {
+    title: "Соблюдение светового режима",
+    currentValue: "88%",
+    targetRange: "Отклонение ≤10 мин, темнота ≥6 ч",
+    status: "warning",
+    chartData: [
+      { day: "12:00", value: 95 }, { day: "12:10", value: 94 }, { day: "12:20", value: 92 },
+      { day: "12:30", value: 90 }, { day: "12:40", value: 89 }, { day: "12:50", value: 88 },
+      { day: "13:00", value: 88 }, { day: "13:10", value: 87 }, { day: "13:20", value: 88 },
+      { day: "13:30", value: 89 }, { day: "13:40", value: 88 }, { day: "13:50", value: 88 },
+      { day: "14:00", value: 88 }
+    ],
+    problemLocations: [
+      { name: "Птичник 4", value: "отклонение 12 мин", status: "warning" },
+      { name: "Темная фаза", value: "5.5 ч", status: "warning" },
+    ],
+    relatedIncident: {
+      title: "Отклонение от программы освещения",
+      description: "Фактическое расписание света отличается от заданной программы больше чем на 10 минут.",
+    },
+  },
   // ========== Возраст 0-3 дня ==========
   temperature_0_3: {
     title: "Температура",
@@ -21,13 +63,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "40.0-40.8°C",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 40.1 },
-      { day: "Вт", value: 40.2 },
-      { day: "Ср", value: 40.0 },
-      { day: "Чт", value: 40.3 },
-      { day: "Пт", value: 40.2 },
-      { day: "Сб", value: 40.1 },
-      { day: "Вс", value: 40.2 },
+      { day: "12:00", value: 40.1 }, { day: "12:10", value: 40.2 }, { day: "12:20", value: 40.0 },
+      { day: "12:30", value: 40.3 }, { day: "12:40", value: 40.2 }, { day: "12:50", value: 40.1 },
+      { day: "13:00", value: 40.2 }, { day: "13:10", value: 40.3 }, { day: "13:20", value: 40.1 },
+      { day: "13:30", value: 40.2 }, { day: "13:40", value: 40.0 }, { day: "13:50", value: 40.2 },
+      { day: "14:00", value: 40.2 }
     ],
     problemLocations: [
       { name: "Корпус 1", value: "40.5°C", status: "warning" },
@@ -40,13 +80,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "65-75%",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 69 },
-      { day: "Вт", value: 70 },
-      { day: "Ср", value: 68 },
-      { day: "Чт", value: 71 },
-      { day: "Пт", value: 70 },
-      { day: "Сб", value: 69 },
-      { day: "Вс", value: 70 },
+      { day: "12:00", value: 69 }, { day: "12:10", value: 70 }, { day: "12:20", value: 68 },
+      { day: "12:30", value: 71 }, { day: "12:40", value: 70 }, { day: "12:50", value: 69 },
+      { day: "13:00", value: 70 }, { day: "13:10", value: 71 }, { day: "13:20", value: 68 },
+      { day: "13:30", value: 70 }, { day: "13:40", value: 69 }, { day: "13:50", value: 70 },
+      { day: "14:00", value: 70 }
     ],
     problemLocations: [
       { name: "Корпус 2", value: "76%", status: "warning" },
@@ -58,13 +96,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "< 5 ppm",
     status: "warning",
     chartData: [
-      { day: "Пн", value: 7 },
-      { day: "Вт", value: 8 },
-      { day: "Ср", value: 7 },
-      { day: "Чт", value: 9 },
-      { day: "Пт", value: 8 },
-      { day: "Сб", value: 7 },
-      { day: "Вс", value: 8 },
+      { day: "12:00", value: 7 }, { day: "12:10", value: 8 }, { day: "12:20", value: 7 },
+      { day: "12:30", value: 9 }, { day: "12:40", value: 8 }, { day: "12:50", value: 7 },
+      { day: "13:00", value: 8 }, { day: "13:10", value: 9 }, { day: "13:20", value: 8 },
+      { day: "13:30", value: 7 }, { day: "13:40", value: 8 }, { day: "13:50", value: 7 },
+      { day: "14:00", value: 8 }
     ],
     problemLocations: [
       { name: "Корпус 2", value: "10 ppm", status: "critical" },
@@ -77,13 +113,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "14-18 г",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 14 },
-      { day: "Вт", value: 15 },
-      { day: "Ср", value: 14 },
-      { day: "Чт", value: 16 },
-      { day: "Пт", value: 15 },
-      { day: "Сб", value: 14 },
-      { day: "Вс", value: 15 },
+      { day: "12:00", value: 14 }, { day: "12:10", value: 15 }, { day: "12:20", value: 14 },
+      { day: "12:30", value: 16 }, { day: "12:40", value: 15 }, { day: "12:50", value: 14 },
+      { day: "13:00", value: 15 }, { day: "13:10", value: 16 }, { day: "13:20", value: 15 },
+      { day: "13:30", value: 14 }, { day: "13:40", value: 15 }, { day: "13:50", value: 16 },
+      { day: "14:00", value: 15 }
     ],
     problemLocations: [
       { name: "Корпус 3", value: "13 г", status: "warning" },
@@ -95,13 +129,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "28-35 мл",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 29 },
-      { day: "Вт", value: 30 },
-      { day: "Ср", value: 29 },
-      { day: "Чт", value: 31 },
-      { day: "Пт", value: 30 },
-      { day: "Сб", value: 29 },
-      { day: "Вс", value: 30 },
+      { day: "12:00", value: 29 }, { day: "12:10", value: 30 }, { day: "12:20", value: 29 },
+      { day: "12:30", value: 31 }, { day: "12:40", value: 30 }, { day: "12:50", value: 29 },
+      { day: "13:00", value: 30 }, { day: "13:10", value: 31 }, { day: "13:20", value: 30 },
+      { day: "13:30", value: 29 }, { day: "13:40", value: 30 }, { day: "13:50", value: 29 },
+      { day: "14:00", value: 30 }
     ],
     problemLocations: [
       { name: "Корпус 1", value: "27 мл", status: "warning" },
@@ -113,13 +145,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "42-48 г",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 44 },
-      { day: "Вт", value: 45 },
-      { day: "Ср", value: 44 },
-      { day: "Чт", value: 46 },
-      { day: "Пт", value: 45 },
-      { day: "Сб", value: 44 },
-      { day: "Вс", value: 45 },
+      { day: "12:00", value: 44 }, { day: "12:10", value: 45 }, { day: "12:20", value: 44 },
+      { day: "12:30", value: 46 }, { day: "12:40", value: 45 }, { day: "12:50", value: 44 },
+      { day: "13:00", value: 45 }, { day: "13:10", value: 46 }, { day: "13:20", value: 45 },
+      { day: "13:30", value: 44 }, { day: "13:40", value: 45 }, { day: "13:50", value: 46 },
+      { day: "14:00", value: 45 }
     ],
     problemLocations: [
       { name: "Корпус 5", value: "41 г", status: "warning" },
@@ -131,13 +161,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "1.1-1.3",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 1.21 },
-      { day: "Вт", value: 1.20 },
-      { day: "Ср", value: 1.19 },
-      { day: "Чт", value: 1.22 },
-      { day: "Пт", value: 1.20 },
-      { day: "Сб", value: 1.19 },
-      { day: "Вс", value: 1.20 },
+      { day: "12:00", value: 1.21 }, { day: "12:10", value: 1.20 }, { day: "12:20", value: 1.19 },
+      { day: "12:30", value: 1.22 }, { day: "12:40", value: 1.20 }, { day: "12:50", value: 1.19 },
+      { day: "13:00", value: 1.20 }, { day: "13:10", value: 1.21 }, { day: "13:20", value: 1.20 },
+      { day: "13:30", value: 1.19 }, { day: "13:40", value: 1.20 }, { day: "13:50", value: 1.21 },
+      { day: "14:00", value: 1.20 }
     ],
     problemLocations: [],
   },
@@ -147,13 +175,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "< 1.0%",
     status: "warning",
     chartData: [
-      { day: "Пн", value: 1.0 },
-      { day: "Вт", value: 1.1 },
-      { day: "Ср", value: 1.0 },
-      { day: "Чт", value: 1.2 },
-      { day: "Пт", value: 1.3 },
-      { day: "Сб", value: 1.2 },
-      { day: "Вс", value: 1.2 },
+      { day: "12:00", value: 1.0 }, { day: "12:10", value: 1.1 }, { day: "12:20", value: 1.0 },
+      { day: "12:30", value: 1.2 }, { day: "12:40", value: 1.3 }, { day: "12:50", value: 1.2 },
+      { day: "13:00", value: 1.2 }, { day: "13:10", value: 1.3 }, { day: "13:20", value: 1.2 },
+      { day: "13:30", value: 1.1 }, { day: "13:40", value: 1.2 }, { day: "13:50", value: 1.3 },
+      { day: "14:00", value: 1.2 }
     ],
     problemLocations: [
       { name: "Корпус 2", value: "1.8%", status: "warning" },
@@ -168,13 +194,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "39.4-40.5°C",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 39.7 },
-      { day: "Вт", value: 39.8 },
-      { day: "Ср", value: 39.6 },
-      { day: "Чт", value: 39.9 },
-      { day: "Пт", value: 39.8 },
-      { day: "Сб", value: 39.7 },
-      { day: "Вс", value: 39.8 },
+      { day: "12:00", value: 39.5 }, { day: "12:10", value: 39.6 }, { day: "12:20", value: 39.7 },
+      { day: "12:30", value: 39.8 }, { day: "12:40", value: 39.9 }, { day: "12:50", value: 39.7 },
+      { day: "13:00", value: 40.1 }, { day: "13:10", value: 40.2 }, { day: "13:20", value: 40.0 },
+      { day: "13:30", value: 39.8 }, { day: "13:40", value: 39.6 }, { day: "13:50", value: 39.8 },
+      { day: "14:00", value: 39.8 }
     ],
     problemLocations: [
       { name: "Корпус 1", value: "40.2°C", status: "warning" },
@@ -187,13 +211,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "55-70%",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 64 },
-      { day: "Вт", value: 65 },
-      { day: "Ср", value: 63 },
-      { day: "Чт", value: 66 },
-      { day: "Пт", value: 65 },
-      { day: "Сб", value: 64 },
-      { day: "Вс", value: 65 },
+      { day: "12:00", value: 64 }, { day: "12:10", value: 65 }, { day: "12:20", value: 63 },
+      { day: "12:30", value: 66 }, { day: "12:40", value: 65 }, { day: "12:50", value: 64 },
+      { day: "13:00", value: 65 }, { day: "13:10", value: 66 }, { day: "13:20", value: 64 },
+      { day: "13:30", value: 65 }, { day: "13:40", value: 63 }, { day: "13:50", value: 65 },
+      { day: "14:00", value: 65 }
     ],
     problemLocations: [
       { name: "Корпус 2", value: "72%", status: "warning" },
@@ -205,13 +227,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "< 10 ppm",
     status: "warning",
     chartData: [
-      { day: "Пн", value: 14 },
-      { day: "Вт", value: 15 },
-      { day: "Ср", value: 14 },
-      { day: "Чт", value: 16 },
-      { day: "Пт", value: 15 },
-      { day: "Сб", value: 14 },
-      { day: "Вс", value: 15 },
+      { day: "12:00", value: 14 }, { day: "12:10", value: 15 }, { day: "12:20", value: 14 },
+      { day: "12:30", value: 16 }, { day: "12:40", value: 15 }, { day: "12:50", value: 14 },
+      { day: "13:00", value: 15 }, { day: "13:10", value: 16 }, { day: "13:20", value: 15 },
+      { day: "13:30", value: 14 }, { day: "13:40", value: 15 }, { day: "13:50", value: 16 },
+      { day: "14:00", value: 15 }
     ],
     problemLocations: [
       { name: "Корпус 2", value: "18 ppm", status: "critical" },
@@ -228,13 +248,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "120-130 г",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 124 },
-      { day: "Вт", value: 125 },
-      { day: "Ср", value: 123 },
-      { day: "Чт", value: 126 },
-      { day: "Пт", value: 125 },
-      { day: "Сб", value: 124 },
-      { day: "Вс", value: 125 },
+      { day: "12:00", value: 124 }, { day: "12:10", value: 125 }, { day: "12:20", value: 123 },
+      { day: "12:30", value: 126 }, { day: "12:40", value: 125 }, { day: "12:50", value: 124 },
+      { day: "13:00", value: 125 }, { day: "13:10", value: 126 }, { day: "13:20", value: 124 },
+      { day: "13:30", value: 125 }, { day: "13:40", value: 123 }, { day: "13:50", value: 125 },
+      { day: "14:00", value: 125 }
     ],
     problemLocations: [
       { name: "Корпус 3", value: "118 г", status: "warning" },
@@ -246,13 +264,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "240-260 мл",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 248 },
-      { day: "Вт", value: 250 },
-      { day: "Ср", value: 249 },
-      { day: "Чт", value: 252 },
-      { day: "Пт", value: 250 },
-      { day: "Сб", value: 249 },
-      { day: "Вс", value: 250 },
+      { day: "12:00", value: 248 }, { day: "12:10", value: 250 }, { day: "12:20", value: 249 },
+      { day: "12:30", value: 252 }, { day: "12:40", value: 250 }, { day: "12:50", value: 249 },
+      { day: "13:00", value: 250 }, { day: "13:10", value: 251 }, { day: "13:20", value: 249 },
+      { day: "13:30", value: 250 }, { day: "13:40", value: 248 }, { day: "13:50", value: 250 },
+      { day: "14:00", value: 250 }
     ],
     problemLocations: [
       { name: "Корпус 1", value: "235 мл", status: "warning" },
@@ -264,13 +280,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "1.7-1.9 кг",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 1.78 },
-      { day: "Вт", value: 1.79 },
-      { day: "Ср", value: 1.80 },
-      { day: "Чт", value: 1.81 },
-      { day: "Пт", value: 1.80 },
-      { day: "Сб", value: 1.79 },
-      { day: "Вс", value: 1.80 },
+      { day: "12:00", value: 1.78 }, { day: "12:10", value: 1.79 }, { day: "12:20", value: 1.80 },
+      { day: "12:30", value: 1.81 }, { day: "12:40", value: 1.80 }, { day: "12:50", value: 1.79 },
+      { day: "13:00", value: 1.80 }, { day: "13:10", value: 1.81 }, { day: "13:20", value: 1.79 },
+      { day: "13:30", value: 1.80 }, { day: "13:40", value: 1.78 }, { day: "13:50", value: 1.80 },
+      { day: "14:00", value: 1.80 }
     ],
     problemLocations: [
       { name: "Корпус 5", value: "1.68 кг", status: "warning" },
@@ -282,13 +296,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "1.6-1.8",
     status: "normal",
     chartData: [
-      { day: "Пн", value: 1.67 },
-      { day: "Вт", value: 1.66 },
-      { day: "Ср", value: 1.65 },
-      { day: "Чт", value: 1.64 },
-      { day: "Пт", value: 1.65 },
-      { day: "Сб", value: 1.66 },
-      { day: "Вс", value: 1.65 },
+      { day: "12:00", value: 1.67 }, { day: "12:10", value: 1.66 }, { day: "12:20", value: 1.65 },
+      { day: "12:30", value: 1.64 }, { day: "12:40", value: 1.65 }, { day: "12:50", value: 1.66 },
+      { day: "13:00", value: 1.65 }, { day: "13:10", value: 1.64 }, { day: "13:20", value: 1.66 },
+      { day: "13:30", value: 1.65 }, { day: "13:40", value: 1.67 }, { day: "13:50", value: 1.65 },
+      { day: "14:00", value: 1.65 }
     ],
     problemLocations: [
       { name: "Корпус 2", value: "1.85", status: "critical" },
@@ -304,13 +316,11 @@ export const metricsDetails: Record<string, MetricDetailData> = {
     targetRange: "< 1.5%",
     status: "critical",
     chartData: [
-      { day: "Пн", value: 1.2 },
-      { day: "Вт", value: 1.4 },
-      { day: "Ср", value: 1.3 },
-      { day: "Чт", value: 1.6 },
-      { day: "Пт", value: 1.8 },
-      { day: "Сб", value: 1.9 },
-      { day: "Вс", value: 2.1 },
+      { day: "12:00", value: 1.2 }, { day: "12:10", value: 1.4 }, { day: "12:20", value: 1.3 },
+      { day: "12:30", value: 1.6 }, { day: "12:40", value: 1.8 }, { day: "12:50", value: 1.9 },
+      { day: "13:00", value: 2.1 }, { day: "13:10", value: 2.0 }, { day: "13:20", value: 1.9 },
+      { day: "13:30", value: 2.1 }, { day: "13:40", value: 2.0 }, { day: "13:50", value: 2.1 },
+      { day: "14:00", value: 2.1 }
     ],
     problemLocations: [
       { name: "Корпус 2", value: "3.1%", status: "critical" },
