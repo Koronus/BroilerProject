@@ -65,6 +65,10 @@ public class Incident {
 
     private UUID notificationId;
 
+    private UUID assigneeId;
+
+    private String assigneeRole;
+
     private String responsible;
 
     @Column(columnDefinition = "text")
@@ -75,8 +79,10 @@ public class Incident {
 
     private LocalDateTime detectedAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime startedAt;
     private LocalDateTime resolvedAt;
     private LocalDateTime closedAt;
+    private Long reactionMinutes;
 
     @PrePersist
     public void prePersist(){

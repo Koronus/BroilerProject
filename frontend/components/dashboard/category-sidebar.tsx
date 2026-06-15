@@ -13,6 +13,7 @@ interface Category {
 }
 
 export const categories: Category[] = [
+  { id: "lighting", name: "Освещение", status: "green" },
   { id: "microclimate", name: "Микроклимат", status: "green" },
   { id: "production", name: "Производственные параметры", status: "green" },
   { id: "lighting", name: "Освещенность", status: "green" },

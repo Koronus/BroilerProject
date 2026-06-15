@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Download,
   Link2,
+  Loader2,
   PlayCircle,
   RefreshCcw,
   Search,
@@ -50,12 +51,17 @@ interface BackendIncident {
   priority: string
   source: string
   responsible?: string | null
+  assigneeId?: string | null
+  assigneeRole?: string | null
   decisionComment?: string | null
   createdAt?: string | null
   detectedAt?: string | null
+  startedAt?: string | null
+  reactionMinutes?: number | null
 }
 
 interface Incident {
+  backendId?: string
   id: string
   date: string
   time: string
@@ -69,6 +75,8 @@ interface Incident {
   priority: IncidentPriority
   status: IncidentStatus
   responsible: string
+  assigneeRole?: string
+  startedAt?: string
   comment: string
   closedAt?: string
 }
@@ -159,6 +167,22 @@ const backendSourceIconMap: Record<string, LucideIcon> = {
 const unknownValue = "—"
 const incidentRefreshIntervalMs = 10_000
 
+const currentUser = {
+  id: "00000000-0000-0000-0000-000000000001",
+  name: "Павел Романов",
+}
+
+const enterpriseRoles = [
+  "Директор по качеству",
+  "Ветврач",
+  "Ветеринарная служба",
+  "Главный инженер",
+  "Техническая служба",
+  "Зоотехник",
+  "Старший смены",
+  "Оператор",
+]
+
 const normalizeBackendEnum = (value?: string | null) => value?.toUpperCase() ?? ""
 
 const formatBackendDateTime = (value?: string | null) => {
@@ -218,6 +242,7 @@ const toIncident = (incident: BackendIncident): Incident => {
   const fallbackLocation = resolveLocation(id)
 
   return {
+    backendId: incident.id,
     id,
     date,
     time,
@@ -239,6 +264,8 @@ const toIncident = (incident: BackendIncident): Incident => {
     priority: backendPriorityMap[normalizeBackendEnum(incident.priority)] ?? "medium",
     status: backendStatusMap[normalizeBackendEnum(incident.status)] ?? "new",
     responsible: incident.responsible ?? "Не назначен",
+    assigneeRole: incident.assigneeRole ?? undefined,
+    startedAt: incident.startedAt ?? undefined,
     comment: incident.decisionComment ?? "Комментарий не указан.",
   }
 }
@@ -347,21 +374,58 @@ function FieldSelect({ label, options, value, onValueChange }: { label: string; 
   )
 }
 
+const incidentMetricMap: Record<string, { metricId: string; label: string }> = {
+  "INC-1": { metricId: "temperature_21_30", label: "Температура" },
+  "INC-2": { metricId: "mortality_21_30", label: "Падеж" },
+  "INC-3": { metricId: "water_intake_21_30", label: "Потребление воды" },
+  "INC-4": { metricId: "temperature_21_30", label: "Температура / вентиляция" },
+  "INC-5": { metricId: "ammonia_21_30", label: "Аммиак" },
+}
+
+const getMetricForIncident = (incident: Incident) => {
+  if (incidentMetricMap[incident.id]) {
+    return incidentMetricMap[incident.id]
+  }
+
+  if (incident.type.includes("оборуд") || incident.type.includes("Поломка")) {
+    return { metricId: "temperature_21_30", label: "Температура / вентиляция" }
+  }
+  if (incident.type.includes("биобез") || incident.type.includes("Биобез")) {
+    return { metricId: "ammonia_21_30", label: "Аммиак" }
+  }
+  if (incident.type.includes("корм") || incident.type.includes("Качество")) {
+    return { metricId: "feed_intake_21_30", label: "Потребление корма" }
+  }
+
+  return { metricId: "mortality_21_30", label: "Состояние стада" }
+}
+
 function IncidentDetails({
   incident,
+  assigningIncidentId,
+  selectedAssigneeRole,
   onOpenDetails,
+  onAssignIncident,
+  onAssigneeRoleChange,
   onCloseIncident,
   onReopenIncident,
   onDownloadReport,
   onCreateRelated,
 }: {
   incident: Incident
+  assigningIncidentId: string | null
+  selectedAssigneeRole: string
   onOpenDetails: (id: string) => void
+  onAssignIncident: (incident: Incident) => void
+  onAssigneeRoleChange: (role: string) => void
   onCloseIncident: (id: string) => void
   onReopenIncident: (id: string) => void
   onDownloadReport: (id: string) => void
   onCreateRelated: (id: string) => void
 }) {
+  const relatedMetric = getMetricForIncident(incident)
+  const isAssigning = assigningIncidentId === incident.id
+
   return (
     <aside className="flex h-full min-h-0 flex-col rounded-br-[28px] border-l border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 px-5 py-4">
@@ -395,6 +459,39 @@ function IncidentDetails({
             <p className="font-medium">Статус: Закрыт{incident.closedAt ? ` (${incident.closedAt})` : ""}</p>
           </section>
         )}
+        {incident.status === "inProgress" && (
+          <section className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+            <p className="text-xs uppercase tracking-wide text-sky-700">Назначение</p>
+            <p className="mt-1 font-medium">В работе у: {incident.responsible}</p>
+            {incident.assigneeRole && <p className="mt-1 text-sky-800">Роль: {incident.assigneeRole}</p>}
+          </section>
+        )}
+        {incident.status === "new" && (
+          <section className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+            <label className="text-xs uppercase tracking-wide text-zinc-500" htmlFor={`assign-role-${incident.id}`}>
+              Роль для назначения
+            </label>
+            <select
+              id={`assign-role-${incident.id}`}
+              value={selectedAssigneeRole}
+              onChange={(event) => onAssigneeRoleChange(event.target.value)}
+              className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-zinc-500"
+            >
+              {enterpriseRoles.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-zinc-500">Показываем только роли предприятия, без фамилий.</p>
+          </section>
+        )}
+        {relatedMetric && (
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="text-xs uppercase tracking-wide text-amber-700">Связанный график</p>
+            <p className="mt-1 font-medium">{relatedMetric.label}</p>
+          </section>
+        )}
         <section>
           <p className="mb-1 text-xs uppercase tracking-wide text-zinc-500">
             {incident.status === "closed" ? "Итог / решение" : "Комментарий"}
@@ -408,12 +505,21 @@ function IncidentDetails({
       <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 px-5 py-4">
         {incident.status !== "closed" ? (
           <>
-            <Button variant="outline" className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950">
-              <PlayCircle className="size-4" />Взять в работу
-            </Button>
+            {incident.status === "new" && (
+              <Button
+                variant="outline"
+                className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+                disabled={isAssigning}
+                onClick={() => onAssignIncident(incident)}
+              >
+                {isAssigning ? <Loader2 className="size-4 animate-spin" /> : <PlayCircle className="size-4" />}
+                {isAssigning ? "Назначаем..." : "Взять в работу"}
+              </Button>
+            )}
             <Button
               variant="outline"
               className="border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950"
+              disabled={incident.status === "new"}
               onClick={() => onCloseIncident(incident.id)}
             >
               <CheckCircle2 className="size-4" />Закрыть
@@ -522,6 +628,8 @@ export function IncidentsPage() {
   const [isClosedExpanded, setIsClosedExpanded] = useState(false)
   const [createSuccessMessage, setCreateSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [assigningIncidentId, setAssigningIncidentId] = useState<string | null>(null)
+  const [selectedAssigneeRole, setSelectedAssigneeRole] = useState(enterpriseRoles[0])
   const [newCategory, setNewCategory] = useState(categoryOptions[0])
   const [newWorkshop, setNewWorkshop] = useState(workshopOptions[0])
   const [newHouse, setNewHouse] = useState(housesByWorkshop[workshopOptions[0]][0])
@@ -712,6 +820,84 @@ export function IncidentsPage() {
     }
   }
 
+  const updateIncidentAfterAssign = (id: string, assignedIncident: Partial<Incident>) => {
+    setIncidents((current) =>
+      current.map((incident) =>
+        incident.id === id
+          ? {
+              ...incident,
+              ...assignedIncident,
+              status: "inProgress",
+              responsible: assignedIncident.responsible ?? currentUser.name,
+              assigneeRole: assignedIncident.assigneeRole ?? selectedAssigneeRole,
+              comment: "Инцидент взят в работу. Ответственный назначен.",
+            }
+          : incident,
+      ),
+    )
+  }
+
+  const handleAssignIncident = async (incident: Incident) => {
+    if (incident.status !== "new") return
+
+    setAssigningIncidentId(incident.id)
+
+    try {
+      if (incident.backendId) {
+        const response = await fetch(`/api/incidents/${incident.backendId}/assign`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            userName: currentUser.name,
+            role: selectedAssigneeRole,
+          }),
+        })
+
+        const rawBody = await response.text()
+
+        if (response.status === 409) {
+          let message = `Этот инцидент уже взят в работу пользователем ${incident.responsible}`
+          try {
+            const conflict = JSON.parse(rawBody) as { message?: string; detail?: string }
+            message = conflict.message ?? conflict.detail ?? message
+          } catch {
+            message = rawBody || message
+          }
+          setCreateSuccessMessage(message)
+          updateIncidentAfterAssign(incident.id, {
+            responsible: message.replace("Этот инцидент уже взят в работу пользователем ", "") || incident.responsible,
+            assigneeRole: incident.assigneeRole,
+          })
+          return
+        }
+
+        if (!response.ok) {
+          throw new Error(rawBody || "Не удалось назначить инцидент")
+        }
+
+        const updatedBackendIncident = rawBody ? (JSON.parse(rawBody) as BackendIncident) : null
+        const updatedIncident = updatedBackendIncident ? toIncident(updatedBackendIncident) : null
+        updateIncidentAfterAssign(incident.id, updatedIncident ?? {})
+      } else {
+        updateIncidentAfterAssign(incident.id, {
+          responsible: currentUser.name,
+          assigneeRole: selectedAssigneeRole,
+          startedAt: new Date().toISOString(),
+        })
+      }
+
+      setCreateSuccessMessage(`Инцидент ${incident.id} назначен на вас`)
+    } catch {
+      setCreateSuccessMessage("Ошибка соединения: инцидент не назначен, попробуйте еще раз.")
+    } finally {
+      setAssigningIncidentId(null)
+      setTimeout(() => setCreateSuccessMessage(""), 4000)
+    }
+  }
+
   const handleCloseIncident = (id: string) => {
     setIncidents((current) =>
       current.map((incident) =>
@@ -879,7 +1065,7 @@ export function IncidentsPage() {
           </div>
 
           <div className="mt-5 lg:hidden">
-            {activeIncident ? <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
+            {activeIncident ? <IncidentDetails incident={activeIncident} assigningIncidentId={assigningIncidentId} selectedAssigneeRole={selectedAssigneeRole} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onAssignIncident={handleAssignIncident} onAssigneeRoleChange={setSelectedAssigneeRole} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
           </div>
 
           <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
@@ -939,7 +1125,7 @@ export function IncidentsPage() {
 
         <div className="hidden min-h-0 lg:block">
           {activeIncident ? (
-            <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} />
+            <IncidentDetails incident={activeIncident} assigningIncidentId={assigningIncidentId} selectedAssigneeRole={selectedAssigneeRole} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onAssignIncident={handleAssignIncident} onAssigneeRoleChange={setSelectedAssigneeRole} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} />
           ) : (
             <aside className="flex h-full items-center justify-center rounded-br-[28px] border-l border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</aside>
           )}
