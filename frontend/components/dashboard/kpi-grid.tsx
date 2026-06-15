@@ -11,6 +11,8 @@ import {
   Utensils,
   Wheat,
   Wind,
+  Lightbulb,
+  Gauge,
 } from "lucide-react"
 import { categories } from "./category-sidebar"
 import { KpiCard } from "./kpi-card"
@@ -56,6 +58,31 @@ const metricsByAge: Record<BirdAgeGroup, Metric[]> = {
     { id: "average_weight_0_3", icon: Scale, title: "Средний вес", value: "45 г", norm: "42-48 г", trend: "up", trendGood: "up", status: "normal", categoryId: "production", ageGroup: "0-3" },
     { id: "fcr_0_3", icon: Wheat, title: "Конверсия корма FCR", value: "1.2", norm: "1.1-1.3", trend: "up", trendGood: "down", status: "normal", categoryId: "production", ageGroup: "0-3" },
     { id: "mortality_0_3", icon: Activity, title: "Смертность", value: "1.2%", norm: "< 1.0%", trend: "up", trendGood: "down", status: "warning", categoryId: "herd", ageGroup: "0-3" },
+    // ========== ПОКАЗАТЕЛИ ОСВЕЩЕНИЯ ==========
+    { 
+      id: "lighting_0_7", 
+      icon: Lightbulb, 
+      title: "Освещенность", 
+      value: "--", 
+      norm: "25-40 лк", 
+      trend: "stable", 
+      trendGood: "up", 
+      status: "normal", 
+      categoryId: "lighting", 
+      ageGroup: "0-3" 
+    },
+    { 
+      id: "lighting_uniformity", 
+      icon: Gauge, 
+      title: "Равномерность освещения", 
+      value: "--", 
+      norm: "≤20%", 
+      trend: "stable", 
+      trendGood: "down", 
+      status: "normal", 
+      categoryId: "lighting", 
+      ageGroup: "0-3" 
+    },
   ],
   "21-30": [
     { id: "temperature_21_30", icon: Thermometer, title: "Температура", value: "39.8°C", norm: "39.4-40.5", trend: "up", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "21-30" },
@@ -66,6 +93,31 @@ const metricsByAge: Record<BirdAgeGroup, Metric[]> = {
     { id: "average_weight_21_30", icon: Scale, title: "Средний вес", value: "1.8 кг", norm: "1.7-1.9 кг", trend: "up", trendGood: "up", status: "normal", categoryId: "production", ageGroup: "21-30" },
     { id: "fcr_21_30", icon: Wheat, title: "Конверсия корма FCR", value: "1.65", norm: "1.6-1.8", trend: "up", trendGood: "down", status: "normal", categoryId: "production", ageGroup: "21-30" },
     { id: "mortality_21_30", icon: Activity, title: "Смертность", value: "2.1%", norm: "< 1.5%", trend: "up", trendGood: "down", status: "critical", categoryId: "herd", ageGroup: "21-30" },
+    // ========== ПОКАЗАТЕЛИ ОСВЕЩЕНИЯ ==========
+    { 
+      id: "lighting_7_plus", 
+      icon: Lightbulb, 
+      title: "Освещенность", 
+      value: "--", 
+      norm: "5-15 лк", 
+      trend: "stable", 
+      trendGood: "up", 
+      status: "normal", 
+      categoryId: "lighting", 
+      ageGroup: "21-30" 
+    },
+    { 
+      id: "lighting_uniformity", 
+      icon: Gauge, 
+      title: "Равномерность освещения", 
+      value: "--", 
+      norm: "≤20%", 
+      trend: "stable", 
+      trendGood: "down", 
+      status: "normal", 
+      categoryId: "lighting", 
+      ageGroup: "21-30" 
+    },
   ],
 }
 
@@ -91,6 +143,8 @@ const sensorCodeByMetricId: Record<string, string> = {
   feed_intake_21_30: "FEED-HOUSE-4-01",
   water_intake_0_3: "WATER-HOUSE-4-01",
   water_intake_21_30: "WATER-HOUSE-4-01",
+  lighting_0_7: "LIGHT-01",
+  lighting_7_plus: "LIGHT-01",
 }
 
 const normalRangesBySensorCode: Record<string, { min?: number; max?: number; criticalMin?: number; criticalMax?: number }> = {

@@ -10,6 +10,8 @@ import { batches, poultryHouses } from "@/lib/production-filters"
 import { NotificationsPage } from "@/components/dashboard/notifications-page" 
 import { IncidentsPage } from "@/components/dashboard/incidents-page"
 import { TasksPage } from "@/components/dashboard/tasks-page"
+import { LightingDetails } from "@/components/dashboard/LightingDetails"
+import { LightingUniformityDetails } from "@/components/dashboard/LightingUniformityDetails"  // ← ДОБАВИТЬ ИМПОРТ
 
 export default function DashboardPage() {
   const [activeCategory, setActiveCategory] = useState(categories[0]?.id || "zootech")
@@ -73,6 +75,62 @@ export default function DashboardPage() {
     }
   }
 
+  // Функция рендеринга панели детализации
+  const renderDetailPanel = () => {
+    if (!showDetailPanel) return null
+
+    // Показатели освещения
+    if (activeMetric === "lighting_0_7") {
+      return (
+        <div className="order-3">
+          <LightingDetails
+            onClose={() => setShowDetailPanel(false)}
+            ageType="0_7"
+          />
+        </div>
+      )
+    }
+
+    if (activeMetric === "lighting_7_plus") {
+      return (
+        <div className="order-3">
+          <LightingDetails
+            onClose={() => setShowDetailPanel(false)}
+            ageType="7_plus"
+          />
+        </div>
+      )
+    }
+
+    // ✅ Равномерность освещения - используем отдельный компонент
+    if (activeMetric === "lighting_uniformity") {
+      return (
+        <div className="order-3">
+          <LightingUniformityDetails
+            onClose={() => setShowDetailPanel(false)}
+          />
+        </div>
+      )
+    }
+
+    // Остальные показатели
+    return (
+      <div className="order-3">
+        <DetailPanel
+          onClose={() => setShowDetailPanel(false)}
+          activeMetric={activeMetric}
+          activeCategory={activeCategory}
+          selectedAge={selectedAge}
+          selectedWorkshopIds={selectedWorkshopIds}
+          selectedHouseIds={selectedHouseIds}
+          selectedBatchIds={selectedBatchIds}
+          selectedAgeRangeId={selectedAgeRangeId}
+          onNavigateToTasks={() => setActiveSection("tasks")}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen px-3 py-3 md:px-5 md:py-5">
       <div className="dashboard-shell mx-auto max-w-[1680px] rounded-[28px]">
@@ -122,21 +180,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {showDetailPanel && (
-                <div className="order-3">
-                  <DetailPanel
-                    onClose={() => setShowDetailPanel(false)}
-                    activeMetric={activeMetric}
-                    activeCategory={activeCategory}
-                    selectedAge={selectedAge}
-                    selectedWorkshopIds={selectedWorkshopIds}
-                    selectedHouseIds={selectedHouseIds}
-                    selectedBatchIds={selectedBatchIds}
-                    selectedAgeRangeId={selectedAgeRangeId}
-                    onNavigateToTasks={() => setActiveSection("tasks")}
-                  />
-                </div>
-              )}
+              {renderDetailPanel()}
             </div>
           </div>
         )}

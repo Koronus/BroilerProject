@@ -1,6 +1,6 @@
 "use client"
 
-import { Activity, ArrowUpRight, CircleAlert, ShieldCheck } from "lucide-react"
+import { Activity, ArrowUpRight, CircleAlert, ShieldCheck, Lightbulb } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { metrics } from "./kpi-grid"
 
@@ -17,6 +17,7 @@ export const categories: Category[] = [
   { id: "production", name: "Производственные параметры", status: "green" },
   { id: "consumption", name: "Потребление ресурсов", status: "green" },
   { id: "herd", name: "Состояние стада", status: "green" },
+  { id: "lighting", name: "Освещение", status: "green" },  // ← добавлено
 ]
 
 const statusConfig: Record<
@@ -83,7 +84,6 @@ export function CategorySidebar({
           </span>
         </div>
 
-        {/* ИСПРАВЛЕННЫЕ КАРТОЧКИ - ВСЕГДА В ОДНУ СТРОКУ */}
         <div className="mt-5 grid grid-cols-2 gap-3">
           <div className="min-w-0 rounded-2xl border border-black/5 bg-white/70 p-4 dark:border-white/8 dark:bg-white/4">
             <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
@@ -106,7 +106,6 @@ export function CategorySidebar({
         </div>
       </div>
 
-      {/* НАВИГАЦИЯ - ВЕРТИКАЛЬНЫЙ СПИСОК */}
       <nav className="dashboard-panel p-3">
         <div className="flex flex-col gap-2">
           {categories.map((category) => {

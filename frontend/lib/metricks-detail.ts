@@ -296,4 +296,22 @@ export const metricsDetails: Record<string, MetricDetailData> = {
       description: "В корпусе 2 зафиксировано нарушение климата (Сквозняк)",
     },
   },
+
+    lighting_0_7: {
+    title: "Освещенность (0-7 дней)",
+    currentValue: "--",
+    targetRange: "25-40 лк",
+    status: "normal",
+    chartData: [],
+    problemLocations: []
+  },
+  lighting_7_plus: {
+    title: "Освещенность (после 7 дней)",
+    currentValue: "--",
+    targetRange: "5-15 лк",
+    status: "normal",
+    chartData: [],
+    problemLocations: []
+  }
+  
 }
