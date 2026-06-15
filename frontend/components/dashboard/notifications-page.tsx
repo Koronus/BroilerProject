@@ -274,6 +274,7 @@ const sourceIcons: Record<NotificationSource, LucideIcon> = {
 
 const normalizeBackendEnum = (value?: string | null) => value?.toUpperCase() ?? ""
 const unknownValue = "—"
+const notificationRefreshIntervalMs = 10_000
 
 const buildTextFilterOptions = (
   values: string[],
@@ -330,6 +331,11 @@ const parseNotificationDateTime = (dateLabel: string, timeLabel: string) => {
 
 const getNotificationTimestamp = (notification: FarmNotification) =>
   notification.createdAtMs ?? parseNotificationDateTime(notification.date, notification.time)
+
+const sortNotifications = (notifications: FarmNotification[]) =>
+  [...notifications].sort(
+    (a, b) => (getNotificationTimestamp(b) ?? 0) - (getNotificationTimestamp(a) ?? 0),
+  )
 
 const notificationNeedsIncident = (notification: FarmNotification) =>
   notification.requiresIncident ||
@@ -502,6 +508,8 @@ const fallbackNotifications: FarmNotification[] = [
     requiresIncident: false,
   },
 ]
+
+const initialNotifications = sortNotifications(fallbackNotifications)
 
 const buildKpiItems = (notifications: FarmNotification[]) => {
   const now = Date.now()
@@ -832,8 +840,8 @@ function NotificationDetails({
 }
 
 export function NotificationsPage() {
-  const [notifications, setNotifications] = useState<FarmNotification[]>(fallbackNotifications)
-  const [activeNotificationId, setActiveNotificationId] = useState(fallbackNotifications[0].id)
+  const [notifications, setNotifications] = useState<FarmNotification[]>(initialNotifications)
+  const [activeNotificationId, setActiveNotificationId] = useState(initialNotifications[0].id)
   const [detailsNotificationId, setDetailsNotificationId] = useState<string | null>(null)
   const [incidentNotificationId, setIncidentNotificationId] = useState<string | null>(null)
   const [assignNotificationId, setAssignNotificationId] = useState<string | null>(null)
@@ -848,9 +856,12 @@ export function NotificationsPage() {
 
   useEffect(() => {
     let isCancelled = false
+    let hasCompletedInitialLoad = false
 
     async function loadNotifications() {
-      setIsLoading(true)
+      if (!hasCompletedInitialLoad) {
+        setIsLoading(true)
+      }
 
       try {
         const response = await fetch("/api/notifications", { cache: "no-store" })
@@ -860,18 +871,35 @@ export function NotificationsPage() {
         }
 
         const data = (await response.json()) as BackendNotification[]
-        const nextNotifications = data.map(toFarmNotification)
+        const nextNotifications = sortNotifications(data.map(toFarmNotification))
 
         if (!isCancelled) {
+          hasCompletedInitialLoad = true
           setNotifications(nextNotifications)
-          setActiveNotificationId(nextNotifications[0]?.id ?? "")
+          setActiveNotificationId((currentId) =>
+            nextNotifications.some((notification) => notification.id === currentId)
+              ? currentId
+              : nextNotifications[0]?.id ?? "",
+          )
           setLoadError(null)
         }
       } catch {
         if (!isCancelled) {
-          setNotifications(fallbackNotifications)
-          setActiveNotificationId(fallbackNotifications[0].id)
-          setLoadError("Бэкенд недоступен, показаны тестовые уведомления")
+          if (!hasCompletedInitialLoad) {
+            setNotifications(initialNotifications)
+            setActiveNotificationId((currentId) =>
+              initialNotifications.some((notification) => notification.id === currentId)
+                ? currentId
+                : initialNotifications[0]?.id ?? "",
+            )
+          }
+
+          setLoadError(
+            hasCompletedInitialLoad
+              ? "Не удалось обновить уведомления"
+              : "Бэкенд недоступен, показаны тестовые уведомления",
+          )
+          hasCompletedInitialLoad = true
         }
       } finally {
         if (!isCancelled) {
@@ -881,9 +909,13 @@ export function NotificationsPage() {
     }
 
     void loadNotifications()
+    const intervalId = window.setInterval(() => {
+      void loadNotifications()
+    }, notificationRefreshIntervalMs)
 
     return () => {
       isCancelled = true
+      window.clearInterval(intervalId)
     }
   }, [])
 

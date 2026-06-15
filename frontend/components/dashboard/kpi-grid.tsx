@@ -1,11 +1,12 @@
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Activity,
   CheckCircle,
   Droplet,
   Droplets,
+  Lightbulb,
   Scale,
   Thermometer,
   Utensils,
@@ -35,10 +36,20 @@ interface Metric {
   ageGroup?: string
 }
 
+interface TelemetryReading {
+  sensorCode: string
+  value: number
+  unit: string
+  measuredAt: string
+}
+
+type TelemetryBySensorCode = Record<string, TelemetryReading[]>
+
 export type BirdAgeGroup = "0-3" | "21-30"
 
 const metricsByAge: Record<BirdAgeGroup, Metric[]> = {
   "0-3": [
+    { id: "lighting_schedule_compliance_0_3", icon: Lightbulb, title: "Соблюдение светового режима", value: "96%", norm: "откл. ≤10 мин, темнота ≥6 ч", trend: "stable", trendGood: "up", status: "normal", categoryId: "lighting", ageGroup: "0-3" },
     { id: "temperature_0_3", icon: Thermometer, title: "Температура", value: "40.2°C", norm: "40.0-40.8", trend: "up", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "0-3" },
     { id: "humidity_0_3", icon: Droplets, title: "Влажность", value: "70%", norm: "65-75%", trend: "stable", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "0-3" },
     { id: "ammonia_0_3", icon: Wind, title: "Аммиак", value: "8 ppm", norm: "< 5 ppm", trend: "up", trendGood: "down", status: "warning", categoryId: "microclimate", ageGroup: "0-3" },
@@ -49,6 +60,7 @@ const metricsByAge: Record<BirdAgeGroup, Metric[]> = {
     { id: "mortality_0_3", icon: Activity, title: "Смертность", value: "1.2%", norm: "< 1.0%", trend: "up", trendGood: "down", status: "warning", categoryId: "herd", ageGroup: "0-3" },
   ],
   "21-30": [
+    { id: "lighting_schedule_compliance_21_30", icon: Lightbulb, title: "Соблюдение светового режима", value: "88%", norm: "откл. ≤10 мин, темнота ≥6 ч", trend: "down", trendGood: "up", status: "warning", categoryId: "lighting", ageGroup: "21-30" },
     { id: "temperature_21_30", icon: Thermometer, title: "Температура", value: "39.8°C", norm: "39.4-40.5", trend: "up", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "21-30" },
     { id: "humidity_21_30", icon: Droplets, title: "Влажность", value: "65%", norm: "55-70%", trend: "down", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "21-30" },
     { id: "ammonia_21_30", icon: Wind, title: "Аммиак", value: "15 ppm", norm: "< 10 ppm", trend: "up", trendGood: "down", status: "warning", categoryId: "microclimate", ageGroup: "21-30" },
@@ -63,10 +75,132 @@ const metricsByAge: Record<BirdAgeGroup, Metric[]> = {
 export const metrics = metricsByAge["21-30"]
 export const getMetricsForAge = (age: BirdAgeGroup) => metricsByAge[age]
 
+const telemetrySensorCodes = [
+  "TEMP-HOUSE-4-01",
+  "HUM-HOUSE-4-01",
+  "AMMONIA-HOUSE-4-01",
+  "FEED-HOUSE-4-01",
+  "WATER-HOUSE-4-01",
+] as const
+
+const sensorCodeByMetricId: Record<string, string> = {
+  temperature_0_3: "TEMP-HOUSE-4-01",
+  temperature_21_30: "TEMP-HOUSE-4-01",
+  humidity_0_3: "HUM-HOUSE-4-01",
+  humidity_21_30: "HUM-HOUSE-4-01",
+  ammonia_0_3: "AMMONIA-HOUSE-4-01",
+  ammonia_21_30: "AMMONIA-HOUSE-4-01",
+  feed_intake_0_3: "FEED-HOUSE-4-01",
+  feed_intake_21_30: "FEED-HOUSE-4-01",
+  water_intake_0_3: "WATER-HOUSE-4-01",
+  water_intake_21_30: "WATER-HOUSE-4-01",
+}
+
+const normalRangesBySensorCode: Record<string, { min?: number; max?: number; criticalMin?: number; criticalMax?: number }> = {
+  "TEMP-HOUSE-4-01": { min: 32, max: 34, criticalMin: 30, criticalMax: 36 },
+  "HUM-HOUSE-4-01": { min: 50, max: 65, criticalMin: 40, criticalMax: 75 },
+  "AMMONIA-HOUSE-4-01": { min: 0, max: 10, criticalMax: 13 },
+  "FEED-HOUSE-4-01": { min: 35, max: 80, criticalMax: 105 },
+  "WATER-HOUSE-4-01": { min: 8, max: 18, criticalMax: 24 },
+}
+
+const formatTelemetryValue = (reading: TelemetryReading) => {
+  const formattedValue = new Intl.NumberFormat("ru-RU", {
+    maximumFractionDigits: reading.value >= 100 ? 0 : 1,
+  }).format(reading.value)
+
+  if (reading.unit === "C") return `${formattedValue}°C`
+  if (reading.unit === "%") return `${formattedValue}%`
+
+  return `${formattedValue} ${reading.unit}`
+}
+
+const resolveTelemetryTrend = (current: TelemetryReading, previous?: TelemetryReading): Metric["trend"] => {
+  if (!previous) return "stable"
+  if (current.value > previous.value) return "up"
+  if (current.value < previous.value) return "down"
+
+  return "stable"
+}
+
+const resolveTelemetryStatus = (sensorCode: string, value: number): Metric["status"] => {
+  const range = normalRangesBySensorCode[sensorCode]
+  if (!range) return "normal"
+
+  if (range.criticalMin !== undefined && value < range.criticalMin) return "critical"
+  if (range.criticalMax !== undefined && value > range.criticalMax) return "critical"
+  if (range.min !== undefined && value < range.min) return "warning"
+  if (range.max !== undefined && value > range.max) return "warning"
+
+  return "normal"
+}
+
+const applyTelemetryToMetrics = (items: Metric[], telemetry: TelemetryBySensorCode) =>
+  items.map((metric) => {
+    const sensorCode = sensorCodeByMetricId[metric.id]
+    const readings = sensorCode ? telemetry[sensorCode] : undefined
+    const latestReading = readings?.[0]
+
+    if (!sensorCode || !latestReading) {
+      return metric
+    }
+
+    return {
+      ...metric,
+      value: formatTelemetryValue(latestReading),
+      trend: resolveTelemetryTrend(latestReading, readings?.[1]),
+      status: resolveTelemetryStatus(sensorCode, latestReading.value),
+    }
+  })
+
 export function KpiGrid({ onSelectMetric, activeMetric, activeCategory, selectedAge }: KpiGridProps) {
-  const currentMetrics = metricsByAge[selectedAge]
+  const [telemetry, setTelemetry] = useState<TelemetryBySensorCode>({})
+  const currentMetrics = useMemo(
+    () => applyTelemetryToMetrics(metricsByAge[selectedAge], telemetry),
+    [selectedAge, telemetry]
+  )
   const currentCategory = categories.find((cat) => cat.id === activeCategory)
   const filteredMetrics = currentMetrics.filter((metric) => metric.categoryId === activeCategory)
+
+  useEffect(() => {
+    let mounted = true
+
+    const loadTelemetry = async () => {
+      try {
+        const entries = await Promise.all(
+          telemetrySensorCodes.map(async (sensorCode) => {
+            const response = await fetch(
+              `/api/telemetry/readings?sensorCode=${encodeURIComponent(sensorCode)}&limit=2`,
+              { cache: "no-store" }
+            )
+
+            if (!response.ok) {
+              return [sensorCode, []] as const
+            }
+
+            const readings = (await response.json()) as TelemetryReading[]
+            return [sensorCode, readings] as const
+          })
+        )
+
+        if (mounted) {
+          setTelemetry(Object.fromEntries(entries))
+        }
+      } catch {
+        if (mounted) {
+          setTelemetry({})
+        }
+      }
+    }
+
+    loadTelemetry()
+    const intervalId = window.setInterval(loadTelemetry, 60_000)
+
+    return () => {
+      mounted = false
+      window.clearInterval(intervalId)
+    }
+  }, [])
 
   const summary = useMemo(() => {
     const warnings = currentMetrics.filter((metric) => metric.status === "warning").length

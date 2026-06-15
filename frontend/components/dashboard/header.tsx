@@ -11,17 +11,17 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export type DashboardSection = "technical" | "incidents" | "notifications"
+export type DashboardSection = "technical" | "incidents" | "notifications" | "tasks"
 
 interface DashboardHeaderProps {
   activeSection: DashboardSection
   onSectionChange: (section: DashboardSection) => void
 }
 
-export function DashboardHeader( {
-      activeSection,
-      onSectionChange,
-    }: DashboardHeaderProps){
+export function DashboardHeader({
+  activeSection,
+  onSectionChange,
+}: DashboardHeaderProps) {
   const timestamp = useMemo(
     () =>
       new Intl.DateTimeFormat("ru-RU", {
@@ -47,33 +47,38 @@ export function DashboardHeader( {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          {/* Center Tabs */}
-      <Tabs
-        value={activeSection}
-        onValueChange={(value) => onSectionChange(value as DashboardSection)}
-        className="hidden md:block"
-      >
-        <TabsList className="bg-background border border-zinc-800">
-          <TabsTrigger
-            value="technical"
-            className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-400"
+          <Tabs
+            value={activeSection}
+            onValueChange={(value) => onSectionChange(value as DashboardSection)}
+            className="hidden md:block"
           >
-            Технические показатели
-          </TabsTrigger>
-          <TabsTrigger
-            value="incidents"
-            className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-400"
-          >
-            Реестр инцидентов
-          </TabsTrigger>
-          <TabsTrigger
-            value="notifications"
-            className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-400"
-          >
-            Уведомления
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+            <TabsList className="bg-background border border-zinc-800">
+              <TabsTrigger
+                value="technical"
+                className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-400"
+              >
+                Технические показатели
+              </TabsTrigger>
+              <TabsTrigger
+                value="incidents"
+                className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-400"
+              >
+                Реестр инцидентов
+              </TabsTrigger>
+              <TabsTrigger
+                value="notifications"
+                className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-400"
+              >
+                Уведомления
+              </TabsTrigger>
+              <TabsTrigger
+                value="tasks"
+                className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-400"
+              >
+                Задачи
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           <div className="flex shrink-0 items-center gap-3">
             <div className="dashboard-chip whitespace-nowrap">

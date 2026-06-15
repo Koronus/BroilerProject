@@ -11,8 +11,37 @@ services:
       - "${POSTGRES_PORT:-5434}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
-
+  influxdb:
+    image: influxdb:1.8
+    restart: unless-stopped
+    environment:
+      INFLUXDB_DB: broiler_telemetry
+      INFLUXDB_HTTP_AUTH_ENABLED: "false"
+    ports:
+      - "8086:8086"
+    volumes:
+      - broiler_influxdb_data:/var/lib/influxdb
+    healthcheck:
+      test: [ "CMD-SHELL", "influx -execute 'SHOW DATABASES'" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  grafana:
+    image: grafana/grafana:latest
+    container_name: broiler-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3001:3000"
+    volumes:
+      - broiler_grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   postgres_data:
+  broiler_influxdb_data:
+  broiler_grafana_data:

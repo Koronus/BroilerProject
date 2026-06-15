@@ -38,9 +38,9 @@ function FilterCard({
     <div className="rounded-[24px] border border-black/5 bg-white/80 p-4 dark:border-white/8 dark:bg-white/4">
       <div className="flex items-start gap-3">
         <div className="rounded-2xl border border-black/5 bg-zinc-950 p-3 text-white dark:border-white/10 dark:bg-white dark:text-zinc-950">
-          <Icon className="size-4" />
+          <Icon className="size-4 shrink-0" />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">{title}</div>
           <div className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">{description}</div>
         </div>
@@ -69,7 +69,7 @@ export function ProductionFilters({
   )
 
   return (
-    <div className="dashboard-panel p-4 md:p-5">
+    <div className="dashboard-panel p-4 md:p-5 overflow-x-hidden">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
@@ -79,20 +79,20 @@ export function ProductionFilters({
             Цех, птичник и партия
           </h2>
         </div>
-        <div className="dashboard-chip whitespace-nowrap">
+        <div className="dashboard-chip whitespace-nowrap shrink-0">
           <Filter className="size-3.5" />
           {selectedWorkshopIds.length || workshops.length} цехов в анализе
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-3">
+      {/* АДАПТИВНАЯ СЕТКА - на мобильных 1 колонка, на десктопе 3 */}
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <FilterCard
           icon={Factory}
           title="Цех"
           description="Множественный выбор цехов предприятия с указанием производственного направления."
         >
-          {/* ЦЕХИ - ВЕРТИКАЛЬНЫЙ СПИСОК */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto">
             {workshops.map((workshop) => {
               const isActive = selectedWorkshopIds.includes(workshop.id)
 
@@ -101,13 +101,14 @@ export function ProductionFilters({
                   key={workshop.id}
                   onClick={() => onWorkshopToggle(workshop.id)}
                   className={cn(
-                    "w-full rounded-full border px-4 py-2 text-sm transition flex items-center justify-between",
+                    "w-full rounded-full border px-3 py-2 text-sm transition flex items-center justify-between",
+                    "break-words",
                     isActive
                       ? "border-zinc-900 bg-zinc-950 text-white dark:border-white dark:bg-white dark:text-zinc-950"
                       : "border-black/8 bg-white text-zinc-700 hover:border-black/15 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10"
                   )}
                 >
-                  <span className="font-medium truncate">{workshop.name}</span>
+                  <span className="font-medium truncate flex-1 text-left">{workshop.name}</span>
                   <span className={cn("ml-2 text-xs shrink-0", isActive ? "text-white/70 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400")}>
                     {workshop.direction}
                   </span>
@@ -132,25 +133,27 @@ export function ProductionFilters({
                   key={house.id}
                   onClick={() => onHouseToggle(house.id)}
                   className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition",
+                    "flex w-full items-center justify-between gap-2 rounded-2xl border px-3 py-3 text-left transition",
+                    "break-words",
                     isActive
                       ? "border-zinc-900 bg-zinc-950 text-white dark:border-white dark:bg-white dark:text-zinc-950"
                       : "border-black/8 bg-white hover:border-black/15 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                   )}
                 >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">{house.name}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium break-words">{house.name}</div>
                     <div className={cn("mt-1 text-xs", isActive ? "text-white/70 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400")}>
                       {workshops.find((item) => item.id === house.workshopId)?.name}
                     </div>
                   </div>
                   <span
                     className={cn(
-                      "inline-flex shrink-0 items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium",
+                      "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium",
+                      "whitespace-nowrap",
                       isActive ? "bg-white/12 text-white dark:bg-zinc-900/8 dark:text-zinc-700" : meta.chipClass
                     )}
                   >
-                    <span className={cn("size-2 rounded-full", meta.dotClass)} />
+                    <span className={cn("size-1.5 rounded-full", meta.dotClass)} />
                     {meta.label}
                   </span>
                 </button>
@@ -164,7 +167,6 @@ export function ProductionFilters({
           title="Партия и возраст"
           description="Партии можно выбирать по идентификатору, а возрастной диапазон использовать как альтернативный режим отбора."
         >
-          {/* ВОЗРАСТНЫЕ ДИАПАЗОНЫ - ВЕРТИКАЛЬНЫЙ СПИСОК */}
           <div className="flex flex-col gap-2">
             {ageRangeOptions.map((option) => (
               <button
@@ -195,13 +197,14 @@ export function ProductionFilters({
                   key={batch.id}
                   onClick={() => onBatchToggle(batch.id)}
                   className={cn(
-                    "w-full rounded-2xl border px-4 py-3 text-left transition",
+                    "w-full rounded-2xl border px-3 py-3 text-left transition",
+                    "break-words",
                     isActive
                       ? "border-zinc-900 bg-zinc-950 text-white dark:border-white dark:bg-white dark:text-zinc-950"
                       : "border-black/8 bg-white hover:border-black/15 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                   )}
                 >
-                  <div className="text-sm font-medium truncate">{batch.label}</div>
+                  <div className="text-sm font-medium break-words">{batch.label}</div>
                   <div className={cn("mt-1 text-xs", isActive ? "text-white/70 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400")}>
                     Возраст: {batch.ageLabel}
                   </div>
