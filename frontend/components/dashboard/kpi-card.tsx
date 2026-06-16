@@ -159,12 +159,12 @@ export function KpiCard({
             {norm && (
               <div
                 className={cn(
-                  "mt-2 text-sm",
+                  "mt-2 text-sm whitespace-normal break-words",
                   isActive ? "text-white/70 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400"
                 )}
               >
                 Норма:{" "}
-                <span className={isActive ? "text-white dark:text-zinc-900" : "text-zinc-900 dark:text-zinc-100"}>
+                <span className={cn("break-words", isActive ? "text-white dark:text-zinc-900" : "text-zinc-900 dark:text-zinc-100")}>
                   {norm}
                 </span>
               </div>
