@@ -140,7 +140,6 @@ export default function DashboardPage() {
                 />
               </div>
 
-                  // ✅ Передаем все фильтры в DetailPanel
               <div className="order-1 min-w-0 xl:order-2">
                 <div className="dashboard-panel">
                   <KpiGrid

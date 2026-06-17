@@ -16,7 +16,6 @@ export const categories: Category[] = [
   { id: "lighting", name: "Освещение", status: "green" },
   { id: "microclimate", name: "Микроклимат", status: "green" },
   { id: "production", name: "Производственные параметры", status: "green" },
-  { id: "lighting", name: "Освещенность", status: "green" },
   { id: "consumption", name: "Потребление ресурсов", status: "green" },
   { id: "herd", name: "Состояние стада", status: "green" },
 ]
