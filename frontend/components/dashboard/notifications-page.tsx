@@ -842,9 +842,15 @@ function NotificationDetails({
   )
 }
 
-export function NotificationsPage() {
+interface NotificationsPageProps {
+  selectedNotificationId?: string
+}
+
+export function NotificationsPage({ selectedNotificationId }: NotificationsPageProps = {}) {
   const [notifications, setNotifications] = useState<FarmNotification[]>(initialNotifications)
-  const [activeNotificationId, setActiveNotificationId] = useState(initialNotifications[0].id)
+  const [activeNotificationId, setActiveNotificationId] = useState(
+    selectedNotificationId ?? initialNotifications[0].id,
+  )
   const [detailsNotificationId, setDetailsNotificationId] = useState<string | null>(null)
   const [incidentNotificationId, setIncidentNotificationId] = useState<string | null>(null)
   const [assignNotificationId, setAssignNotificationId] = useState<string | null>(null)

@@ -1,15 +1,17 @@
 "use client"
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { DashboardHeader, type DashboardSection } from "@/components/dashboard/header"
 import { CategorySidebar, categories } from "@/components/dashboard/category-sidebar"
 import { DetailPanel } from "@/components/dashboard/detail-panel"
 import { KpiGrid, getMetricsForAge, type BirdAgeGroup } from "@/components/dashboard/kpi-grid"
-import { ProductionFilters, resolveAgeGroup } from "@/components/dashboard/production-filters"
+import { resolveAgeGroup } from "@/components/dashboard/production-filters"
+import { TechnicalHeader } from "@/components/dashboard/technical-header"
 import { batches, poultryHouses } from "@/lib/production-filters"
-import { NotificationsPage } from "@/components/dashboard/notifications-page" 
+import { NotificationsPage } from "@/components/dashboard/notifications-page"
 import { IncidentsPage } from "@/components/dashboard/incidents-page"
 import { TasksPage } from "@/components/dashboard/tasks-page"
+import { NotificationBanner } from "@/components/dashboard/notification-banner"
 
 export default function DashboardPage() {
   const [activeCategory, setActiveCategory] = useState(categories[0]?.id || "zootech")
@@ -20,6 +22,7 @@ export default function DashboardPage() {
   const [selectedHouseIds, setSelectedHouseIds] = useState<string[]>(["ph-101"])
   const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>(["batch-2026-04-15-b1"])
   const [selectedAgeRangeId, setSelectedAgeRangeId] = useState("all")
+  const [selectedIncidentId, setSelectedIncidentId] = useState<string>()
 
   const selectedAge = useMemo<BirdAgeGroup>(
     () => resolveAgeGroup(selectedBatchIds, selectedAgeRangeId),
@@ -55,22 +58,25 @@ export default function DashboardPage() {
     }
   }, [activeCategory, selectedAge])
 
-  const toggleSelection = (value: string, setter: Dispatch<SetStateAction<string[]>>) => {
-    setter((current) =>
-      current.includes(value) ? current.filter((item) => item !== value) : [...current, value]
-    )
-  }
-
-  const handleBatchToggle = (id: string) => {
-    setSelectedAgeRangeId("all")
-    toggleSelection(id, setSelectedBatchIds)
-  }
-
-  const handleAgeRangeChange = (id: string) => {
-    setSelectedAgeRangeId(id)
-    if (id !== "all") {
-      setSelectedBatchIds([])
+  const handleSelectHouse = (id: string) => {
+    const house = poultryHouses.find((item) => item.id === id)
+    if (house) {
+      setSelectedWorkshopIds([house.workshopId])
     }
+    setSelectedHouseIds([id])
+    const firstBatch = batches.find((batch) => batch.poultryHouseId === id)
+    setSelectedBatchIds(firstBatch ? [firstBatch.id] : [])
+    setSelectedAgeRangeId("all")
+  }
+
+  const handleSelectBatch = (id: string) => {
+    setSelectedBatchIds([id])
+    setSelectedAgeRangeId("all")
+  }
+
+  const handleOpenIncidentCard = (incidentId: string) => {
+    setSelectedIncidentId(incidentId)
+    setActiveSection("incidents")
   }
 
   return (
@@ -84,23 +90,21 @@ export default function DashboardPage() {
         {activeSection === "notifications" ? (
           <NotificationsPage />
         ) : activeSection === "incidents" ? (
-          <IncidentsPage />
+          <IncidentsPage selectedIncidentId={selectedIncidentId} />
         ) : activeSection === "tasks" ? (
           <TasksPage />
         ) : (
           <div className="space-y-4 p-3 md:p-4">
-            <ProductionFilters
-              selectedWorkshopIds={selectedWorkshopIds}
-              selectedHouseIds={selectedHouseIds}
-              selectedBatchIds={selectedBatchIds}
-              selectedAgeRangeId={selectedAgeRangeId}
-              onWorkshopToggle={(id) => toggleSelection(id, setSelectedWorkshopIds)}
-              onHouseToggle={(id) => toggleSelection(id, setSelectedHouseIds)}
-              onBatchToggle={handleBatchToggle}
-              onAgeRangeChange={handleAgeRangeChange}
+            <NotificationBanner onOpen={handleOpenIncidentCard} />
+
+            <TechnicalHeader
+              selectedHouseId={selectedHouseIds[0]}
+              selectedBatchId={selectedBatchIds[0]}
+              onSelectHouse={handleSelectHouse}
+              onSelectBatch={handleSelectBatch}
             />
 
-            <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_420px]">
+            <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
               <div className="order-2 xl:order-1">
                 <CategorySidebar
                   activeCategory={activeCategory}
@@ -108,7 +112,7 @@ export default function DashboardPage() {
                 />
               </div>
 
-              <div className="order-1 min-w-0 xl:order-2">
+              <div className="order-1 min-w-0 space-y-4 xl:order-2">
                 <div className="dashboard-panel">
                   <KpiGrid
                     onSelectMetric={(metric) => {
@@ -120,10 +124,8 @@ export default function DashboardPage() {
                     selectedAge={selectedAge}
                   />
                 </div>
-              </div>
 
-              {showDetailPanel && (
-                <div className="order-3">
+                {showDetailPanel && (
                   <DetailPanel
                     onClose={() => setShowDetailPanel(false)}
                     activeMetric={activeMetric}
@@ -135,8 +137,8 @@ export default function DashboardPage() {
                     selectedAgeRangeId={selectedAgeRangeId}
                     onNavigateToTasks={() => setActiveSection("tasks")}
                   />
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}
