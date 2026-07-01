@@ -1,5 +1,7 @@
 "use client"
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useEffect, useMemo, useState } from "react"
 import { DashboardHeader, type DashboardSection } from "@/components/dashboard/header"
 import { CategorySidebar, categories } from "@/components/dashboard/category-sidebar"
@@ -46,17 +48,47 @@ export default function DashboardPage() {
   }, [selectedHouseIds])
 
   useEffect(() => {
-    const firstMetricInCategory = getMetricsForAge(selectedAge).find(
+    const metricsInCategory = getMetricsForAge(selectedAge).filter(
       (metric) => metric.categoryId === activeCategory
     )
+    const currentMetricInCategory = metricsInCategory.some((metric) => metric.id === activeMetric)
+    const firstMetricInCategory = metricsInCategory[0]
 
-    if (firstMetricInCategory) {
+    if (currentMetricInCategory) {
+      setShowDetailPanel(true)
+    } else if (firstMetricInCategory) {
       setActiveMetric(firstMetricInCategory.id)
       setShowDetailPanel(true)
     } else {
       setShowDetailPanel(false)
     }
-  }, [activeCategory, selectedAge])
+  }, [activeCategory, activeMetric, selectedAge])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const section = params.get("section")
+    const metric = params.get("metric")
+
+    if (section === "technical") {
+      setActiveSection("technical")
+    }
+
+    if (metric) {
+      const matchedMetric = getMetricsForAge(selectedAge).find((item) => item.id === metric)
+
+      if (matchedMetric) {
+        setActiveCategory(matchedMetric.categoryId)
+        setActiveMetric(matchedMetric.id)
+        setShowDetailPanel(true)
+        requestAnimationFrame(() => {
+          document.getElementById("technical-detail-panel")?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          })
+        })
+      }
+    }
+  }, [selectedAge])
 
   const handleSelectHouse = (id: string) => {
     const house = poultryHouses.find((item) => item.id === id)
@@ -126,6 +158,7 @@ export default function DashboardPage() {
                 </div>
 
                 {showDetailPanel && (
+                  <div id="technical-detail-panel" className="scroll-mt-6">
                   <DetailPanel
                     onClose={() => setShowDetailPanel(false)}
                     activeMetric={activeMetric}
@@ -137,6 +170,7 @@ export default function DashboardPage() {
                     selectedAgeRangeId={selectedAgeRangeId}
                     onNavigateToTasks={() => setActiveSection("tasks")}
                   />
+                  </div>
                 )}
               </div>
             </div>

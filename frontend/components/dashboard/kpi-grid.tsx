@@ -55,6 +55,7 @@ export type BirdAgeGroup = "0-3" | "21-30"
 
 const metricsByAge: Record<BirdAgeGroup, Metric[]> = {
   "0-3": [
+    { id: "lighting_schedule_compliance_0_3", icon: Lightbulb, title: "Соблюдение светового режима", value: "96%", norm: "откл. ≤10 мин, темнота ≥6 ч", trend: "stable", trendGood: "up", status: "normal", categoryId: "lighting", ageGroup: "0-3" },
     { id: "temperature_0_3", icon: Thermometer, title: "Температура", value: "40.2°C", norm: "40.0-40.8", trend: "up", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "0-3" },
     { id: "humidity_0_3", icon: Droplets, title: "Влажность", value: "70%", norm: "65-75%", trend: "stable", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "0-3" },
     { id: "ammonia_0_3", icon: Wind, title: "Аммиак", value: "8 ppm", norm: "< 5 ppm", trend: "up", trendGood: "down", status: "warning", categoryId: "microclimate", ageGroup: "0-3" },
@@ -69,6 +70,7 @@ const metricsByAge: Record<BirdAgeGroup, Metric[]> = {
     { id: "mortality_0_3", icon: Activity, title: "Смертность", value: "1.2%", norm: "< 1.0%", trend: "up", trendGood: "down", status: "warning", categoryId: "herd", ageGroup: "0-3" },
   ],
   "21-30": [
+    { id: "lighting_schedule_compliance_21_30", icon: Lightbulb, title: "Соблюдение светового режима", value: "88%", norm: "откл. ≤10 мин, темнота ≥6 ч", trend: "down", trendGood: "up", status: "warning", categoryId: "lighting", ageGroup: "21-30" },
     { id: "temperature_21_30", icon: Thermometer, title: "Температура", value: "39.8°C", norm: "39.4-40.5", trend: "up", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "21-30" },
     { id: "humidity_21_30", icon: Droplets, title: "Влажность", value: "65%", norm: "55-70%", trend: "down", trendGood: "up", status: "normal", categoryId: "microclimate", ageGroup: "21-30" },
     { id: "ammonia_21_30", icon: Wind, title: "Аммиак", value: "15 ppm", norm: "< 10 ppm", trend: "up", trendGood: "down", status: "warning", categoryId: "microclimate", ageGroup: "21-30" },
@@ -261,7 +263,7 @@ export function KpiGrid({ onSelectMetric, activeMetric, activeCategory, selected
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {filteredMetrics.map((metric) => (
               <KpiCard
                 key={metric.id}

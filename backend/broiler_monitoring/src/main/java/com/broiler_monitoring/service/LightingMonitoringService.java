@@ -45,6 +45,7 @@ public class LightingMonitoringService {
         log.info("Проверка показателей освещения...");
         checkIlluminance();
         checkUniformity();
+        checkScheduleCompliance();
     }
 
     // ========== 1. ОСВЕЩЕННОСТЬ ==========
@@ -129,6 +130,57 @@ public class LightingMonitoringService {
 
     // ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ==========
 
+    private void checkScheduleCompliance() {
+        LightingScheduleSnapshot snapshot = getScheduleSnapshot();
+
+        int allowedDeviationMinutes = 15;
+        double compliancePercent = Math.max(
+                0,
+                100.0 - ((double) snapshot.deviationMinutes() / allowedDeviationMinutes * 100.0)
+        );
+
+        influxStorage.saveLightingScheduleCompliance(
+                "house-4",
+                snapshot.scheduledLightMinutes(),
+                snapshot.actualLightMinutes(),
+                snapshot.scheduledDarkMinutes(),
+                snapshot.actualDarkMinutes(),
+                snapshot.deviationMinutes(),
+                compliancePercent,
+                resolveScheduleStatus(snapshot.deviationMinutes(), snapshot.actualDarkMinutes())
+        );
+
+        if (snapshot.actualDarkMinutes() < 240) {
+            createIncident(
+                    IncidentType.LIGHTING_DARK_PERIOD_VIOLATION,
+                    "Критическое нарушение темного периода",
+                    String.format("Темный период %.1f ч при минимуме 6 ч", snapshot.actualDarkMinutes() / 60.0),
+                    IncidentPriority.CRITICAL
+            );
+            return;
+        }
+
+        if (snapshot.deviationMinutes() > 15) {
+            createIncident(
+                    IncidentType.LIGHTING_SCHEDULE_DEVIATION,
+                    "Нарушение светового режима",
+                    String.format("Отклонение расписания %d мин при допустимых 10-15 мин", snapshot.deviationMinutes()),
+                    IncidentPriority.HIGH
+            );
+            return;
+        }
+
+        if (snapshot.deviationMinutes() > 10 || snapshot.actualDarkMinutes() < 360) {
+            createIncident(
+                    IncidentType.LIGHTING_SCHEDULE_DEVIATION,
+                    "Отклонение от программы освещения",
+                    String.format("Соблюдение режима %.1f%%, отклонение %d мин, темный период %.1f ч",
+                            compliancePercent, snapshot.deviationMinutes(), snapshot.actualDarkMinutes() / 60.0),
+                    IncidentPriority.MEDIUM
+            );
+        }
+    }
+
     private SensorReadingResponse getLatestReading(String sensorCode) {
         try {
             List<SensorReadingResponse> readings = telemetryService
@@ -148,13 +200,40 @@ public class LightingMonitoringService {
         return 40.0; // для возраста 0-7 дней
     }
 
+    private LightingScheduleSnapshot getScheduleSnapshot() {
+        return new LightingScheduleSnapshot(
+                1080,
+                1112,
+                360,
+                328,
+                12
+        );
+    }
+
+    private String resolveScheduleStatus(int deviationMinutes, int actualDarkMinutes) {
+        if (actualDarkMinutes < 240) {
+            return "CRITICAL";
+        }
+        if (deviationMinutes > 15) {
+            return "VIOLATION";
+        }
+        if (deviationMinutes > 10 || actualDarkMinutes < 360) {
+            return "WARNING";
+        }
+        return "NORMAL";
+    }
+
     private void createIncident(IncidentType type, String title, String description) {
+        createIncident(type, title, description, IncidentPriority.HIGH);
+    }
+
+    private void createIncident(IncidentType type, String title, String description, IncidentPriority priority) {
         Incident incident = new Incident();
         incident.setCode(generateIncidentCode());
         incident.setType(type);
         incident.setTitle(title);
         incident.setDescription(description);
-        incident.setPriority(IncidentPriority.HIGH);
+        incident.setPriority(priority);
         incident.setStatus(IncidentStatus.OPEN);
         incident.setSource(IncidentSource.SYSTEM);
 
@@ -166,6 +245,15 @@ public class LightingMonitoringService {
     private String generateIncidentCode() {
         return "INC-" + System.currentTimeMillis() + "-" +
                 UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    private record LightingScheduleSnapshot(
+            int scheduledLightMinutes,
+            int actualLightMinutes,
+            int scheduledDarkMinutes,
+            int actualDarkMinutes,
+            int deviationMinutes
+    ) {
     }
 
 
