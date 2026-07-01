@@ -1,6 +1,16 @@
+export interface IncidentAttachment {
+  id: string
+  incidentId: string
+  originalFileName: string
+  contentType: string
+  sizeBytes: number
+  mediaType: string
+  createdAt?: string | null
+}
+
 export async function uploadIncidentAttachments(incidentId: string | undefined, files: File[]) {
   if (files.length === 0) {
-    return
+    return []
   }
 
   if (!incidentId) {
@@ -19,6 +29,8 @@ export async function uploadIncidentAttachments(incidentId: string | undefined, 
   if (!response.ok) {
     throw new Error(responseBody || "Не удалось загрузить фото-/видео-материалы")
   }
+
+  return responseBody ? (JSON.parse(responseBody) as IncidentAttachment[]) : []
 }
 
 export function formatAttachmentFileSize(bytes: number) {

@@ -614,10 +614,16 @@ const responsibleByCategory: Record<string, string[]> = {
 
 const initialIncidents = sortIncidents(fallbackIncidents)
 
-export function IncidentsPage() {
+interface IncidentsPageProps {
+  selectedIncidentId?: string
+}
+
+export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
   const router = useRouter()
   const [incidents, setIncidents] = useState<Incident[]>(initialIncidents)
-  const [activeIncidentId, setActiveIncidentId] = useState(initialIncidents[0].id)
+  const [activeIncidentId, setActiveIncidentId] = useState(
+    selectedIncidentId ?? initialIncidents[0].id,
+  )
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("Все типы")
   const [houseFilter, setHouseFilter] = useState("Все птичники")
