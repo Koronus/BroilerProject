@@ -14,13 +14,48 @@ export interface MetricDetailData {
 }
 
 // Временные метки с 12:00 до 14:00 с интервалом 10 минут
-// Всего 13 значений: 12:00, 12:10, 12:20, 12:30, 12:40, 12:50, 13:00, 13:10, 13:20, 13:30, 13:40, 13:50, 14:00
 const timeLabels = [
   "12:00", "12:10", "12:20", "12:30", "12:40", "12:50",
   "13:00", "13:10", "13:20", "13:30", "13:40", "13:50", "14:00"
 ]
 
 export const metricsDetails: Record<string, MetricDetailData> = {
+  lighting_schedule_compliance_0_3: {
+    title: "Соблюдение светового режима",
+    currentValue: "96%",
+    targetRange: "Отклонение ≤10 мин, темнота ≥6 ч",
+    status: "normal",
+    chartData: [
+      { day: "12:00", value: 98 }, { day: "12:10", value: 97 }, { day: "12:20", value: 96 },
+      { day: "12:30", value: 96 }, { day: "12:40", value: 97 }, { day: "12:50", value: 96 },
+      { day: "13:00", value: 96 }, { day: "13:10", value: 95 }, { day: "13:20", value: 96 },
+      { day: "13:30", value: 97 }, { day: "13:40", value: 96 }, { day: "13:50", value: 96 },
+      { day: "14:00", value: 96 }
+    ],
+    problemLocations: [],
+  },
+  lighting_schedule_compliance_21_30: {
+    title: "Соблюдение светового режима",
+    currentValue: "88%",
+    targetRange: "Отклонение ≤10 мин, темнота ≥6 ч",
+    status: "warning",
+    chartData: [
+      { day: "12:00", value: 95 }, { day: "12:10", value: 94 }, { day: "12:20", value: 92 },
+      { day: "12:30", value: 90 }, { day: "12:40", value: 89 }, { day: "12:50", value: 88 },
+      { day: "13:00", value: 88 }, { day: "13:10", value: 87 }, { day: "13:20", value: 88 },
+      { day: "13:30", value: 89 }, { day: "13:40", value: 88 }, { day: "13:50", value: 88 },
+      { day: "14:00", value: 88 }
+    ],
+    problemLocations: [
+      { name: "Птичник 4", value: "отклонение 12 мин", status: "warning" },
+      { name: "Темная фаза", value: "5.5 ч", status: "warning" },
+    ],
+    relatedIncident: {
+      title: "Отклонение от программы освещения",
+      description: "Фактическое расписание света отличается от заданной программы больше чем на 10 минут.",
+    },
+  },
+
   // ========== Возраст 0-3 дня ==========
   temperature_0_3: {
     title: "Температура",
@@ -369,4 +404,4 @@ Object.assign(metricsDetails, {
     chartData: toChartData([0.79, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80]),
     problemLocations: [],
   },
-} satisfies Record<string, MetricDetailData>)
+})

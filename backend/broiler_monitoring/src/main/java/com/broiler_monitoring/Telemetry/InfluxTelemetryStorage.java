@@ -297,4 +297,39 @@ public class InfluxTelemetryStorage {
             log.info("Saved uniformity: {}%, sensors: {}", uniformity, sensorCount);
         }
     }
+
+    public void saveLightingScheduleCompliance(String houseId,
+                                               int scheduledLightMinutes,
+                                               int actualLightMinutes,
+                                               int scheduledDarkMinutes,
+                                               int actualDarkMinutes,
+                                               int deviationMinutes,
+                                               double compliancePercent,
+                                               String status) {
+        String lineProtocol = String.format(
+                "lighting_schedule_compliance,houseId=%s,status=%s scheduled_light_minutes=%di,actual_light_minutes=%di,scheduled_dark_minutes=%di,actual_dark_minutes=%di,deviation_minutes_total=%di,compliance_percent=%.2f %d",
+                escapeTagValue(houseId),
+                escapeTagValue(status),
+                scheduledLightMinutes,
+                actualLightMinutes,
+                scheduledDarkMinutes,
+                actualDarkMinutes,
+                deviationMinutes,
+                compliancePercent,
+                Instant.now().toEpochMilli() * 1000000L
+        );
+
+        HttpRequest request = HttpRequest.newBuilder(writeUri())
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "text/plain; charset=utf-8")
+                .POST(HttpRequest.BodyPublishers.ofString(lineProtocol, StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response = send(request);
+        if (response.statusCode() >= 300) {
+            log.error("Failed to save lighting schedule compliance to InfluxDB: {}", response.body());
+        } else {
+            log.info("Saved lighting schedule compliance: {}%, status: {}", compliancePercent, status);
+        }
+    }
 }
