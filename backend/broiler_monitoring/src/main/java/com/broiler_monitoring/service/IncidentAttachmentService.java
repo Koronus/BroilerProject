@@ -10,10 +10,17 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.IOException;
 import java.util.List;
@@ -60,6 +67,42 @@ public class IncidentAttachmentService {
                 .toList();
     }
 
+    public AttachmentDownload openAttachment(UUID incidentId, UUID attachmentId) {
+        ensureIncidentExists(incidentId);
+
+        IncidentAttachment attachment = attachmentRepository.findById(attachmentId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Attachment with id '%s' not found".formatted(attachmentId)));
+
+        if (!incidentId.equals(attachment.getIncidentId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Attachment with id '%s' not found for incident '%s'".formatted(attachmentId, incidentId));
+        }
+
+        try {
+            ResponseInputStream<GetObjectResponse> s3Object = s3Client.getObject(GetObjectRequest.builder()
+                    .bucket(attachment.getBucket())
+                    .key(attachment.getStorageKey())
+                    .build());
+
+            StreamingResponseBody body = outputStream -> {
+                try (s3Object) {
+                    s3Object.transferTo(outputStream);
+                }
+            };
+
+            return new AttachmentDownload(
+                    attachment.getOriginalFileName(),
+                    attachment.getContentType(),
+                    attachment.getSizeBytes(),
+                    body);
+        } catch (SdkException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to read attachment from S3", exception);
+        }
+    }
+
     private IncidentAttachment uploadOne(UUID incidentId, MultipartFile file) {
         validateFile(file);
 
@@ -70,6 +113,8 @@ public class IncidentAttachmentService {
         String bucket = properties.getS3().getBucket();
 
         try {
+            ensureBucketExists(bucket);
+
             PutObjectRequest request = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(storageKey)
@@ -96,6 +141,44 @@ public class IncidentAttachmentService {
         attachment.setMediaType(mediaType);
 
         return attachmentRepository.save(attachment);
+    }
+
+    private void ensureBucketExists(String bucket) {
+        try {
+            s3Client.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
+        } catch (S3Exception exception) {
+            if (exception.statusCode() != 404) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Failed to access S3 bucket '%s'".formatted(bucket),
+                        exception);
+            }
+
+            createBucket(bucket);
+        } catch (SdkException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Failed to access S3 bucket '%s'".formatted(bucket),
+                    exception);
+        }
+    }
+
+    private void createBucket(String bucket) {
+        try {
+            s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
+        } catch (S3Exception exception) {
+            if (exception.statusCode() != 409) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Failed to create S3 bucket '%s'".formatted(bucket),
+                        exception);
+            }
+        } catch (SdkException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Failed to create S3 bucket '%s'".formatted(bucket),
+                    exception);
+        }
     }
 
     private void ensureIncidentExists(UUID incidentId) {
@@ -152,5 +235,13 @@ public class IncidentAttachmentService {
         }
 
         return safeName;
+    }
+
+    public record AttachmentDownload(
+            String fileName,
+            String contentType,
+            long sizeBytes,
+            StreamingResponseBody body
+    ) {
     }
 }
