@@ -5,10 +5,15 @@ import com.broiler_monitoring.entity.Incident;
 import com.broiler_monitoring.enumerated.IncidentStatus;
 import com.broiler_monitoring.service.IncidentAttachmentService;
 import com.broiler_monitoring.service.IncidentService;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
@@ -62,6 +67,25 @@ public class IncidentController {
             @RequestParam("files") List<MultipartFile> files
     ){
         return attachmentService.upload(id, files);
+    }
+
+    @GetMapping("/{id}/attachments/{attachmentId}/content")
+    public ResponseEntity<StreamingResponseBody> openAttachment(
+            @PathVariable UUID id,
+            @PathVariable UUID attachmentId
+    ){
+        IncidentAttachmentService.AttachmentDownload attachment = attachmentService.openAttachment(id, attachmentId);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(attachment.contentType()))
+                .contentLength(attachment.sizeBytes())
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline()
+                                .filename(attachment.fileName(), StandardCharsets.UTF_8)
+                                .build()
+                                .toString())
+                .body(attachment.body());
     }
 
     @PatchMapping("/{id}/status")

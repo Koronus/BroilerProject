@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   Activity,
-  CheckCircle,
   Droplet,
   Droplets,
   Lightbulb,
@@ -241,69 +240,12 @@ export function KpiGrid({ onSelectMetric, activeMetric, activeCategory, selected
     }
   }, [])
 
-  const summary = useMemo(() => {
-    const warnings = currentMetrics.filter((metric) => metric.status === "warning").length
-    const critical = currentMetrics.filter((metric) => metric.status === "critical").length
-    const stable = currentMetrics.filter((metric) => metric.status === "normal").length
-
-    return { warnings, critical, stable }
-  }, [currentMetrics])
-
   return (
     <div className="flex flex-col">
-      <div className="border-b border-black/5 px-5 py-5 dark:border-white/8 md:px-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
-              Выбранный раздел
-            </p>
-            <h2 className="mt-2 break-words text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-              {currentCategory?.name || "Показатели"}
-            </h2>
-            <p className="mt-2 max-w-2xl break-words text-sm text-zinc-500 dark:text-zinc-400">
-              Карточки собраны по текущей возрастной группе и помогают быстро увидеть отклонения от нормы.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="rounded-full border border-black/5 bg-white/80 px-4 py-3 text-sm text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
-              Возрастной срез:{" "}
-              <span className="font-medium text-zinc-950 dark:text-zinc-50">
-                {selectedAge === "0-3" ? "0-3 дня" : "21-30 дней"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-black/5 bg-white/75 p-4 dark:border-white/8 dark:bg-white/4">
-            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <CheckCircle className="size-4 text-emerald-500" />
-              Стабильные метрики
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
-              {summary.stable}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-black/5 bg-white/75 p-4 dark:border-white/8 dark:bg-white/4">
-            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <Activity className="size-4 text-amber-500" />
-              Предупреждения
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
-              {summary.warnings}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-black/5 bg-white/75 p-4 dark:border-white/8 dark:bg-white/4">
-            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <Activity className="size-4 text-red-500" />
-              Критические
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
-              {summary.critical}
-            </div>
-          </div>
-        </div>
+      <div className="px-5 pt-5 md:px-6">
+        <h2 className="break-words text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+          {currentCategory?.name || "Показатели"}
+        </h2>
       </div>
 
       <div className="px-5 py-5 md:px-6">

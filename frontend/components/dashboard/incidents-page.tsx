@@ -10,6 +10,7 @@ import {
   Droplets,
   ExternalLink,
   Download,
+  ImageIcon,
   Link2,
   PlayCircle,
   RefreshCcw,
@@ -20,6 +21,7 @@ import {
   ChevronDown,
   ChevronRight,
   UserRound,
+  Video,
   Wind,
   Wrench,
   type LucideIcon,
@@ -56,6 +58,7 @@ interface BackendIncident {
 }
 
 interface Incident {
+  backendId: string
   id: string
   date: string
   time: string
@@ -71,6 +74,15 @@ interface Incident {
   responsible: string
   comment: string
   closedAt?: string
+}
+
+interface IncidentAttachment {
+  id: string
+  originalFileName: string
+  contentType: string
+  sizeBytes: number
+  mediaType: string
+  createdAt?: string | null
 }
 
 const priorityConfig: Record<IncidentPriority, { label: string; className: string; rowClass: string; iconClass: string }> = {
@@ -158,6 +170,8 @@ const backendSourceIconMap: Record<string, LucideIcon> = {
 
 const unknownValue = "—"
 const incidentRefreshIntervalMs = 10_000
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 const normalizeBackendEnum = (value?: string | null) => value?.toUpperCase() ?? ""
 
@@ -218,6 +232,7 @@ const toIncident = (incident: BackendIncident): Incident => {
   const fallbackLocation = resolveLocation(id)
 
   return {
+    backendId: incident.id,
     id,
     date,
     time,
@@ -243,6 +258,12 @@ const toIncident = (incident: BackendIncident): Incident => {
   }
 }
 
+const formatAttachmentSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} Б`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`
+}
+
 const buildKpiItems = (incidents: Incident[]) => [
   { label: "Открытые", value: incidents.filter((i) => i.status !== "closed").length.toString(), icon: Clock3, tone: "text-sky-600" },
   { label: "Критические", value: incidents.filter((i) => i.priority === "critical").length.toString(), icon: AlertTriangle, tone: "text-red-600" },
@@ -252,6 +273,7 @@ const buildKpiItems = (incidents: Incident[]) => [
 
 const fallbackIncidents: Incident[] = [
   {
+    backendId: "INC-1",
     id: "INC-1",
     date: "15.04.2026",
     time: "10:38",
@@ -268,6 +290,7 @@ const fallbackIncidents: Incident[] = [
     comment: "Смена открыла заслонки.",
   },
   {
+    backendId: "INC-2",
     id: "INC-2",
     date: "15.04.2026",
     time: "10:21",
@@ -284,6 +307,7 @@ const fallbackIncidents: Incident[] = [
     comment: "Инцидент создан по уведомлению системы.",
   },
   {
+    backendId: "INC-3",
     id: "INC-3",
     date: "15.04.2026",
     time: "09:56",
@@ -300,6 +324,7 @@ const fallbackIncidents: Incident[] = [
     comment: "Проверить давление и доступность ниппелей.",
   },
   {
+    backendId: "INC-4",
     id: "INC-4",
     date: "15.04.2026",
     time: "09:10",
@@ -317,6 +342,7 @@ const fallbackIncidents: Incident[] = [
     closedAt: "15.04.2026, 09:40",
   },
   {
+    backendId: "INC-5",
     id: "INC-5",
     date: "14.04.2026",
     time: "18:12",
@@ -349,6 +375,7 @@ function FieldSelect({ label, options, value, onValueChange }: { label: string; 
 
 function IncidentDetails({
   incident,
+  attachments,
   onOpenDetails,
   onCloseIncident,
   onReopenIncident,
@@ -356,6 +383,7 @@ function IncidentDetails({
   onCreateRelated,
 }: {
   incident: Incident
+  attachments: IncidentAttachment[]
   onOpenDetails: (id: string) => void
   onCloseIncident: (id: string) => void
   onReopenIncident: (id: string) => void
@@ -363,7 +391,7 @@ function IncidentDetails({
   onCreateRelated: (id: string) => void
 }) {
   return (
-    <aside className="flex h-full min-h-0 flex-col rounded-br-[28px] border-l border-zinc-200 bg-white">
+    <aside className="flex h-[calc(100dvh-2.5rem-2cm)] min-h-0 flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
       <div className="border-b border-zinc-200 px-5 py-4">
         <p className="text-xs uppercase tracking-wide text-zinc-500">Карточка инцидента</p>
         <div className="mt-2 flex items-start justify-between gap-3">
@@ -402,6 +430,40 @@ function IncidentDetails({
           <p className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
             {incident.comment}
           </p>
+        </section>
+        <section>
+          <p className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Материалы</p>
+          {attachments.length > 0 ? (
+            <div className="space-y-2">
+              {attachments.map((attachment) => {
+                const isVideo =
+                  attachment.mediaType === "VIDEO" || attachment.contentType.startsWith("video/")
+                const Icon = isVideo ? Video : ImageIcon
+
+                return (
+                  <a
+                    key={attachment.id}
+                    href={`/api/incidents/${encodeURIComponent(incident.backendId)}/attachments/${encodeURIComponent(attachment.id)}/content`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 transition-colors hover:bg-zinc-100 hover:text-zinc-950"
+                  >
+                    <Icon className="size-4 shrink-0 text-zinc-500" />
+                    <span className="min-w-0 flex-1 truncate font-medium">
+                      {attachment.originalFileName}
+                    </span>
+                    <span className="shrink-0 text-xs text-zinc-500">
+                      {formatAttachmentSize(attachment.sizeBytes)}
+                    </span>
+                  </a>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="rounded-md border border-dashed border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500">
+              Материалы не загружены.
+            </p>
+          )}
         </section>
       </div>
 
@@ -508,10 +570,16 @@ const responsibleByCategory: Record<string, string[]> = {
 
 const initialIncidents = sortIncidents(fallbackIncidents)
 
-export function IncidentsPage() {
+interface IncidentsPageProps {
+  selectedIncidentId?: string
+}
+
+export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
   const router = useRouter()
   const [incidents, setIncidents] = useState<Incident[]>(initialIncidents)
-  const [activeIncidentId, setActiveIncidentId] = useState(initialIncidents[0].id)
+  const [activeIncidentId, setActiveIncidentId] = useState(
+    selectedIncidentId ?? initialIncidents[0].id,
+  )
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("Все типы")
   const [houseFilter, setHouseFilter] = useState("Все птичники")
@@ -522,6 +590,7 @@ export function IncidentsPage() {
   const [isClosedExpanded, setIsClosedExpanded] = useState(false)
   const [createSuccessMessage, setCreateSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [activeAttachments, setActiveAttachments] = useState<IncidentAttachment[]>([])
   const [newCategory, setNewCategory] = useState(categoryOptions[0])
   const [newWorkshop, setNewWorkshop] = useState(workshopOptions[0])
   const [newHouse, setNewHouse] = useState(housesByWorkshop[workshopOptions[0]][0])
@@ -610,6 +679,41 @@ export function IncidentsPage() {
   const statusOptions = useMemo(() => ["Все статусы", ...Array.from(new Set(incidents.map((i) => statusConfig[i.status].label)))], [incidents])
   const priorityOptions = useMemo(() => ["Любой", ...Array.from(new Set(incidents.map((i) => priorityConfig[i.priority].label)))], [incidents])
 
+  useEffect(() => {
+    const incidentBackendId = activeIncident?.backendId
+
+    if (!incidentBackendId || !uuidPattern.test(incidentBackendId)) {
+      setActiveAttachments([])
+      return
+    }
+
+    let isCancelled = false
+
+    async function loadAttachments() {
+      try {
+        const response = await fetch(`/api/incidents/${encodeURIComponent(incidentBackendId)}/attachments`, {
+          cache: "no-store",
+        })
+
+        if (!response.ok) {
+          if (!isCancelled) setActiveAttachments([])
+          return
+        }
+
+        const data = (await response.json()) as IncidentAttachment[]
+        if (!isCancelled) setActiveAttachments(data)
+      } catch {
+        if (!isCancelled) setActiveAttachments([])
+      }
+    }
+
+    void loadAttachments()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [activeIncident?.backendId])
+
   const currentHouseOptions = useMemo(
     () => housesByWorkshop[newWorkshop] ?? [],
     [newWorkshop],
@@ -685,11 +789,12 @@ export function IncidentsPage() {
       const createdIncident = JSON.parse(responseBody) as BackendIncident
       const nextIncident = toIncident(createdIncident)
       let attachmentMessage = ""
+      let uploadedAttachments: IncidentAttachment[] = []
 
       if (newIncidentFiles.length > 0) {
         try {
-          await uploadIncidentAttachments(createdIncident.id, newIncidentFiles)
-          attachmentMessage = `. Материалы: ${newIncidentFiles.length}`
+          uploadedAttachments = await uploadIncidentAttachments(createdIncident.id, newIncidentFiles)
+          attachmentMessage = `. Материалы: ${uploadedAttachments.length}`
         } catch (uploadError) {
           const uploadMessage =
             uploadError instanceof Error ? uploadError.message : "неизвестная ошибка"
@@ -699,6 +804,7 @@ export function IncidentsPage() {
 
       setIncidents((current) => sortIncidents([nextIncident, ...current]))
       setActiveIncidentId(nextIncident.id)
+      setActiveAttachments(uploadedAttachments)
       setIsCreateOpen(false)
       setNewDescription("")
       setNewIncidentFiles([])
@@ -879,7 +985,7 @@ export function IncidentsPage() {
           </div>
 
           <div className="mt-5 lg:hidden">
-            {activeIncident ? <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
+            {activeIncident ? <IncidentDetails incident={activeIncident} attachments={activeAttachments} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
           </div>
 
           <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
@@ -937,9 +1043,9 @@ export function IncidentsPage() {
           </div>
         </section>
 
-        <div className="hidden min-h-0 lg:block">
+        <div className="hidden min-h-0 p-5 lg:sticky lg:top-5 lg:block lg:self-start">
           {activeIncident ? (
-            <IncidentDetails incident={activeIncident} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} />
+            <IncidentDetails incident={activeIncident} attachments={activeAttachments} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} />
           ) : (
             <aside className="flex h-full items-center justify-center rounded-br-[28px] border-l border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</aside>
           )}

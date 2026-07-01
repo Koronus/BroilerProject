@@ -3,7 +3,7 @@
 import { GrafanaStyleChart } from "./grafana-style-chart"
 import { FullChartModal } from "./full-chart-modal"
 import { useEffect, useState } from "react"
-import { AlertTriangle, ClipboardPlus, FileText, X, CheckCircle2, Clock, PlayCircle, User, Calendar as CalendarIcon } from "lucide-react"
+import { AlertTriangle, ClipboardPlus, Download, X, CheckCircle2, Clock, PlayCircle, User, Calendar as CalendarIcon } from "lucide-react"
 import {
   Area,
   AreaChart,
@@ -878,98 +878,101 @@ export function DetailPanel({
   return (
     <>
       <aside className="dashboard-panel p-5 md:p-6">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
-              Детализация
-            </p>
-            <h2 className="mt-2 break-words text-xl font-semibold text-zinc-950 dark:text-zinc-50">
-              {metricData.title}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-full border border-black/5 p-2 text-zinc-500 transition hover:bg-black/5 dark:border-white/10 dark:text-zinc-400 dark:hover:bg-white/8"
-            aria-label="Закрыть панель"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-          <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-              Текущее значение
-            </p>
-            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
-              {metricData.currentValue}
-            </div>
-            <Badge className={`mt-3 border ${getStatusColor(metricData.status)}`}>
-              {getStatusText(metricData.status)}
-            </Badge>
-          </div>
-
-          <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-              Целевой диапазон
-            </p>
-            <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50 whitespace-nowrap -ml-3">
-              {metricData.targetRange}
-            </div>
-            <Badge className="mt-3 border border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
-              Норма
-            </Badge>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="break-words text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+            {metricData.title}
+          </h2>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsReportsModalOpen(true)}
+              className="inline-flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white"
+            >
+              Скачать отчет
+              <Download className="size-4" />
+            </button>
+            <Button
+              onClick={() => setIsTaskModalOpen(true)}
+              className="rounded-full bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+            >
+              <ClipboardPlus className="size-4" />
+              Создать задачу
+            </Button>
           </div>
         </div>
 
-        <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 2 часа</h3>
-          <GrafanaStyleChart
-            title={metricData.title}
-            data={metricData.chartData}
-            dataKey="value"
-            xAxisKey="day"
-            unit={formatUnit()}
-            color={getChartColor(metricData.status)}
-            onExpand={() => setIsChartModalOpen(true)}
-            targetMin={stats.targetMin}
-            targetMax={stats.targetMax}
-          />
-        </div>
-
-        {/* <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
-          <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
-          <div className="mt-4 space-y-3">
-            {metricData.problemLocations.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-zinc-500 dark:border-white/10 dark:text-zinc-400">
-                Отклонений по локациям не найдено.
+        <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,260px)_minmax(0,1fr)_minmax(0,300px)]">
+          <div className="flex flex-col gap-4">
+            <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                Текущее значение
+              </p>
+              <div className="mt-3 text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
+                {metricData.currentValue}
               </div>
-            ) : (
-              metricData.problemLocations.map((location) => (
-                <div
-                  key={location.name}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 px-4 py-4 dark:border-white/8"
-                >
-                  <span className="min-w-0 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">{location.name}</span>
-                  <div className="flex items-center gap-2">
-                    <span className={location.status === "critical" ? "text-sm font-semibold text-red-600 dark:text-red-300" : "text-sm font-semibold text-amber-600 dark:text-amber-300"}>
-                      {location.value}
+              <Badge className={`mt-3 border ${getStatusColor(metricData.status)}`}>
+                {getStatusText(metricData.status)}
+              </Badge>
+            </div>
+
+            <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                Целевой диапазон
+              </p>
+              <div className="mt-3 whitespace-nowrap text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
+                {metricData.targetRange}
+              </div>
+              <Badge className="mt-3 border border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
+                Норма
+              </Badge>
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+            <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Динамика за 7 дней</h3>
+            <GrafanaStyleChart
+              title={metricData.title}
+              data={metricData.chartData}
+              dataKey="value"
+              xAxisKey="day"
+              unit={formatUnit()}
+              color={getChartColor(metricData.status)}
+              onExpand={() => setIsChartModalOpen(true)}
+              targetMin={stats.targetMin}
+              targetMax={stats.targetMax}
+            />
+          </div>
+
+          <div className="rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
+            <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Проблемные локации</h3>
+            <div className="mt-4 space-y-3">
+              {metricData.problemLocations.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-black/10 px-4 py-5 text-sm text-zinc-500 dark:border-white/10 dark:text-zinc-400">
+                  Отклонений по локациям не найдено.
+                </div>
+              ) : (
+                metricData.problemLocations.map((location) => (
+                  <div
+                    key={location.name}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 px-4 py-3 dark:border-white/8"
+                  >
+                    <span className="min-w-0 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                      {location.name}
                     </span>
-                    <Badge
+                    <span
                       className={
                         location.status === "critical"
-                          ? "border border-red-500/20 bg-red-500/12 text-red-600 dark:text-red-300"
-                          : "border border-amber-500/20 bg-amber-500/12 text-amber-600 dark:text-amber-300"
+                          ? "shrink-0 text-sm font-semibold text-red-600 dark:text-red-300"
+                          : "shrink-0 text-sm font-semibold text-amber-600 dark:text-amber-300"
                       }
                     >
-                      {location.status === "critical" ? "Критично" : "Внимание"}
-                    </Badge>
+                      {location.value}
+                    </span>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div> */}
+        </div>
 
         {/* НОВАЯ СЕКЦИЯ: Связанные задачи */}
         <div className="mt-5 rounded-[24px] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/4">
@@ -1084,33 +1087,6 @@ export function DetailPanel({
           </div>
         )} */}
 
-        {/* Кнопки */}
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={() => setIsReportsModalOpen(true)}
-            className="rounded-full border-black/10 bg-white/80 text-zinc-700 hover:bg-white dark:border-white/10 dark:bg-white/4 dark:text-zinc-200 dark:hover:bg-white/8"
-          >
-            <FileText className="size-4" />
-            Отчеты
-          </Button>
-          {/* <Button 
-            onClick={() => setIsTaskModalOpen(true)}
-            className="rounded-full bg-zinc-950 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
-          >
-            <ClipboardPlus className="size-4" />
-            Создать задачу
-          </Button> */}
-          {/* {onNavigateToTasks && (
-            <Button
-              variant="outline"
-              onClick={onNavigateToTasks}
-              className="rounded-full border-black/10 bg-white/80 text-zinc-700 hover:bg-white dark:border-white/10 dark:bg-white/4 dark:text-zinc-200 dark:hover:bg-white/8"
-            >
-              Все задачи
-            </Button>
-          )} */}
-        </div>
       </aside>
 
       <ReportsModal
