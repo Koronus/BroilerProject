@@ -236,6 +236,8 @@ public class LightingMonitoringService {
         incident.setPriority(priority);
         incident.setStatus(IncidentStatus.OPEN);
         incident.setSource(IncidentSource.SYSTEM);
+        incident.setWorkshop("Бройлерный цех № 1");
+        incident.setHouse("Птичник 4");
 
 
         incidentRepository.save(incident);

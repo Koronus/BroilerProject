@@ -153,17 +153,31 @@ public class IncidentAnalyticsService {
     // ── Группировки ──────────────────────────────────────────────────────────
 
     private List<CountBreakdownDto> groupByType(List<Incident> incidents) {
-        return incidents.stream()
-                .collect(Collectors.groupingBy(
-                        i -> i.getType() != null ? i.getType() : IncidentType.OTHER,
-                        Collectors.counting()))
-                .entrySet().stream()
+        Map<String, int[]> grouped = new LinkedHashMap<>();
+        Map<String, String> keyByLabel = new HashMap<>();
+
+        for (Incident i : incidents) {
+            IncidentType type = i.getType() != null ? i.getType() : IncidentType.OTHER;
+            String label = typeToLabel(type);
+
+            grouped.computeIfAbsent(label, k -> new int[1])[0]++;
+            keyByLabel.putIfAbsent(label, type.name());
+        }
+
+        return grouped.entrySet().stream()
                 .map(e -> new CountBreakdownDto(
-                        e.getKey().name(),
-                        e.getKey().getDisplayName(),
-                        e.getValue().intValue()))
+                        keyByLabel.get(e.getKey()),
+                        e.getKey(),
+                        e.getValue()[0]))
                 .sorted(Comparator.comparingInt(CountBreakdownDto::count).reversed())
                 .toList();
+    }
+
+    private String typeToLabel(IncidentType type) {
+        if (type.name().startsWith("LIGHTING_")) {
+            return "Освещение";
+        }
+        return type.getDisplayName();
     }
 
     private List<CountBreakdownDto> groupByPriority(List<Incident> incidents) {

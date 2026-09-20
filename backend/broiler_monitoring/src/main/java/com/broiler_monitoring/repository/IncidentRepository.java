@@ -19,7 +19,8 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
     List<Incident> findByNotificationId(UUID notificationId);
 
     @Query("SELECT i FROM Incident i " +
-            "WHERE i.createdAt >= :from AND i.createdAt < :to " +
+            "WHERE COALESCE(i.detectedAt, i.createdAt) >= :from " +
+            "AND COALESCE(i.detectedAt, i.createdAt) < :to " +
             "AND (:workshop IS NULL OR i.workshop = :workshop) " +
             "AND (:house IS NULL OR i.house = :house)")
     List<Incident> findForAnalytics(

@@ -217,7 +217,20 @@ public class IncidentService {
         }
 
         incident.setStatus(newStatus);
-        return repository.save(incident);
+        Incident saved = repository.save(incident);
+
+        // ── запись в историю (ТЗ: STATUS_CHANGED при любом переходе) ──
+        if (oldStatus != newStatus) {
+            historyRepository.save(new IncidentHistory(
+                    saved.getId(),
+                    "STATUS_CHANGED",
+                    null,
+                    null,
+                    "Статус изменён: %s → %s".formatted(oldStatus, newStatus)
+            ));
+        }
+
+        return saved;
     }
 
     private Long calcReaction(Incident i) {
