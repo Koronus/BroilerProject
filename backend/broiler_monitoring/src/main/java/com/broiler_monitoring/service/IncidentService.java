@@ -21,7 +21,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -42,17 +44,22 @@ public class IncidentService {
     private final NotificationRepository notificationRepository;
     private final AppUserRepository userRepository;
     private final IncidentHistoryRepository historyRepository;
+    private final Clock clock;
+
+
 
     public IncidentService(
             IncidentRepository repository,
             NotificationRepository notificationRepository,
             AppUserRepository userRepository,
-            IncidentHistoryRepository historyRepository
+            IncidentHistoryRepository historyRepository,
+            Clock clock
     ){
         this.repository = repository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.historyRepository = historyRepository;
+        this.clock = clock;
     }
 
     public List<Incident> findAll(){
@@ -71,11 +78,14 @@ public class IncidentService {
                         HttpStatus.NOT_FOUND,
                         "Incidetn with code '%s' not found".formatted(code)));
     }
-    public Incident create(Incident incidentRequest){
+    public Incident create(Incident incidentRequest) {
         Incident request = incidentRequest != null ? incidentRequest : new Incident();
         Incident incident = new Incident();
 
-        incident.setCode(firstNotBlank(request.getCode(), generateIncidentCode()));
+
+        incident.setCode(generateIncidentCode());
+
+
         incident.setType(request.getType() != null ? request.getType() : IncidentType.OTHER);
         incident.setWorkshop(blankToNull(request.getWorkshop()));
         incident.setHouse(blankToNull(request.getHouse()));
@@ -84,10 +94,18 @@ public class IncidentService {
         incident.setDescription(request.getDescription());
         incident.setPriority(request.getPriority() != null ? request.getPriority() : IncidentPriority.MEDIUM);
         incident.setSource(request.getSource() != null ? request.getSource() : IncidentSource.MANUAL);
-        incident.setStatus(request.getStatus() != null ? request.getStatus() : IncidentStatus.OPEN);
         incident.setResponsible(blankToNull(request.getResponsible()));
         incident.setDecisionComment(blankToNull(request.getDecisionComment()));
-        incident.setDetectedAt(request.getDetectedAt());
+
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        incident.setCreatedAt(now);
+        incident.setDetectedAt(now);
+
+
+        incident.setStatus(IncidentStatus.OPEN);
+
+
 
         return repository.save(incident);
     }
@@ -129,43 +147,82 @@ public class IncidentService {
         return repository.save(incident);
     }
 
-    public Incident update(UUID id, Incident updatedIncident){
+    public Incident update(UUID id, Incident updatedIncident) {
         Incident incident = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Incident with id '%s' not found".formatted(id)));
 
-        incident.setTitle(updatedIncident.getTitle());
-        incident.setDescription(updatedIncident.getDescription());
-        incident.setCode(updatedIncident.getCode());
-        incident.setPriority(updatedIncident.getPriority());
-        incident.setSource(updatedIncident.getSource());
+
+        if (updatedIncident.getTitle() != null) {
+            incident.setTitle(updatedIncident.getTitle());
+        }
+        if (updatedIncident.getDescription() != null) {
+            incident.setDescription(updatedIncident.getDescription());
+        }
         if (updatedIncident.getType() != null) {
             incident.setType(updatedIncident.getType());
         }
-        incident.setWorkshop(blankToNull(updatedIncident.getWorkshop()));
-        incident.setHouse(blankToNull(updatedIncident.getHouse()));
-        incident.setZone(blankToNull(updatedIncident.getZone()));
-        incident.setStatus(updatedIncident.getStatus());
-        incident.setDetectedAt(updatedIncident.getDetectedAt());
-        incident.setClosedAt(updatedIncident.getClosedAt());
-        incident.setResolvedAt(updatedIncident.getResolvedAt());
-        incident.setResponsible(updatedIncident.getResponsible());
-        incident.setNotificationId(updatedIncident.getNotificationId());
-        incident.setDecisionComment(updatedIncident.getDecisionComment());
+        if (updatedIncident.getPriority() != null) {
+            incident.setPriority(updatedIncident.getPriority());
+        }
+        if (updatedIncident.getWorkshop() != null) {
+            incident.setWorkshop(blankToNull(updatedIncident.getWorkshop()));
+        }
+        if (updatedIncident.getHouse() != null) {
+            incident.setHouse(blankToNull(updatedIncident.getHouse()));
+        }
+        if (updatedIncident.getZone() != null) {
+            incident.setZone(blankToNull(updatedIncident.getZone()));
+        }
+        if (updatedIncident.getResponsible() != null) {
+            incident.setResponsible(blankToNull(updatedIncident.getResponsible()));
+        }
+        if (updatedIncident.getDecisionComment() != null) {
+            incident.setDecisionComment(blankToNull(updatedIncident.getDecisionComment()));
+        }
+
+
 
         return repository.save(incident);
-
     }
 
     public Incident changeStatus(UUID id, IncidentStatus newStatus){
-        Incident incident = repository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Incident with id '%s' not found".formatted(id)));
-        incident.setStatus(newStatus);
+        Incident incident = repository.findById(id).orElseThrow();
+        IncidentStatus oldStatus = incident.getStatus();
 
+        switch (newStatus) {
+            case IN_PROGRESS -> {
+                if (oldStatus == IncidentStatus.OPEN && incident.getStartedAt() == null) {
+                    incident.setStartedAt(LocalDateTime.now(clock));
+                    incident.setReactionMinutes(calcReaction(incident));
+                }
+                if (oldStatus == IncidentStatus.CLOSED) {
+                    incident.setClosedAt(null);
+                    incident.setResolvedAt(null);
+                    // startedAt НЕ трогаем
+                }
+            }
+            case RESOLVED -> {
+                if (incident.getResolvedAt() == null) {
+                    incident.setResolvedAt(LocalDateTime.now(clock));
+                }
+            }
+            case CLOSED -> {
+                if (incident.getClosedAt() == null) {
+                    incident.setClosedAt(LocalDateTime.now(clock));
+                }
+            }
+            default -> {}
+        }
+
+        incident.setStatus(newStatus);
         return repository.save(incident);
+    }
+
+    private Long calcReaction(Incident i) {
+        LocalDateTime base = i.getDetectedAt() != null ? i.getDetectedAt() : i.getCreatedAt();
+        return Duration.between(base, i.getStartedAt()).toMinutes();
     }
 
     @Transactional
@@ -194,15 +251,18 @@ public class IncidentService {
                 .orElseGet(() -> new AppUser(userId, userName, role));
         userRepository.save(user);
 
-        LocalDateTime startedAt = LocalDateTime.now();
+        LocalDateTime startedAt = LocalDateTime.now(clock);
         incident.setStatus(IncidentStatus.IN_PROGRESS);
         incident.setAssigneeId(user.getId());
         incident.setAssigneeRole(user.getRole());
         incident.setResponsible(user.getFullName());
         incident.setStartedAt(startedAt);
 
-        if (incident.getCreatedAt() != null){
-            incident.setReactionMinutes(Duration.between(incident.getCreatedAt(), startedAt).toMinutes());
+        LocalDateTime base = incident.getDetectedAt() != null
+                ? incident.getDetectedAt()
+                : incident.getCreatedAt();
+        if (base != null) {
+            incident.setReactionMinutes(Duration.between(base, startedAt).toMinutes());
         }
 
         Incident savedIncident = repository.save(incident);
