@@ -45,13 +45,27 @@ const statusColors: Record<string, string> = {
 }
 
 const typeColors: Record<string, string> = {
-  microclimate: "bg-sky-500",
-  lighting: "bg-amber-400",
-  water: "bg-blue-500",
-  flock: "bg-violet-500",
-  feeding: "bg-orange-500",
-  sanitation: "bg-emerald-500",
-  production: "bg-zinc-500",
+  // Backend enum keys
+  MICROCLIMATE: "bg-sky-500",
+  SANITATION: "bg-emerald-500",
+  FLOCK_HEALTH: "bg-violet-500",
+  FEEDING: "bg-orange-500",
+  WATER_SUPPLY: "bg-blue-500",
+  PRODUCTION_METRICS: "bg-zinc-500",
+  OTHER: "bg-zinc-400",
+
+  // Все LIGHTING_* — один цвет (жёлтый/янтарный)
+  LIGHTING_ILLUMINANCE_LOW: "bg-amber-400",
+  LIGHTING_ILLUMINANCE_HIGH: "bg-amber-400",
+  LIGHTING_UNIFORMITY_VIOLATION: "bg-amber-400",
+  LIGHTING_SYSTEM_HEALTH_WARNING: "bg-amber-400",
+  LIGHTING_SYSTEM_HEALTH_CRITICAL: "bg-amber-400",
+  LIGHTING_SCHEDULE_DEVIATION: "bg-amber-400",
+  LIGHTING_DARK_PERIOD_VIOLATION: "bg-amber-400",
+  LIGHTING_CONTROLLER_FAILURE: "bg-amber-400",
+  LIGHTING_CONTINUOUS_LIGHT: "bg-amber-400",
+  LIGHTING_CONTINUOUS_DARK: "bg-amber-400",
+  LIGHTING_MISSING_EVENTS: "bg-amber-400",
 }
 
 function AnalyticsSkeleton() {
