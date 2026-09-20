@@ -10,7 +10,7 @@
     "slaMinutes": 30
   },
   "kpi": {
-    "total": 18,
+    "total": 17,
     "active": 6,
     "critical": 4,
     "avgReactionMinutes": 24.0,

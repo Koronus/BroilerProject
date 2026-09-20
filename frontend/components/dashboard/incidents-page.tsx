@@ -134,23 +134,47 @@ const backendStatusMap: Record<string, IncidentStatus> = {
 
 const backendIncidentTypeLabelMap: Record<string, string> = {
   MICROCLIMATE: "Микроклимат",
-  LIGHTING: "Освещение",
   SANITATION: "Санитария",
   FLOCK_HEALTH: "Падеж и состояние стада",
   FEEDING: "Кормление",
   WATER_SUPPLY: "Водоснабжение",
   PRODUCTION_METRICS: "Производственные показатели",
+
+  LIGHTING_ILLUMINANCE_LOW: "Освещение",
+  LIGHTING_ILLUMINANCE_HIGH: "Освещение",
+  LIGHTING_UNIFORMITY_VIOLATION: "Освещение",
+  LIGHTING_SYSTEM_HEALTH_WARNING: "Освещение",
+  LIGHTING_SYSTEM_HEALTH_CRITICAL: "Освещение",
+  LIGHTING_SCHEDULE_DEVIATION: "Освещение",
+  LIGHTING_DARK_PERIOD_VIOLATION: "Освещение",
+  LIGHTING_CONTROLLER_FAILURE: "Освещение",
+  LIGHTING_CONTINUOUS_LIGHT: "Освещение",
+  LIGHTING_CONTINUOUS_DARK: "Освещение",
+  LIGHTING_MISSING_EVENTS: "Освещение",
+
   OTHER: "Прочее",
 }
 
 const backendIncidentTypeIconMap: Record<string, LucideIcon> = {
   MICROCLIMATE: Thermometer,
-  LIGHTING: AlertTriangle,
   SANITATION: ShieldAlert,
   FLOCK_HEALTH: ShieldAlert,
   FEEDING: Wrench,
   WATER_SUPPLY: Droplets,
   PRODUCTION_METRICS: Wrench,
+
+  LIGHTING_ILLUMINANCE_LOW: AlertTriangle,
+  LIGHTING_ILLUMINANCE_HIGH: AlertTriangle,
+  LIGHTING_UNIFORMITY_VIOLATION: AlertTriangle,
+  LIGHTING_SYSTEM_HEALTH_WARNING: AlertTriangle,
+  LIGHTING_SYSTEM_HEALTH_CRITICAL: AlertTriangle,
+  LIGHTING_SCHEDULE_DEVIATION: AlertTriangle,
+  LIGHTING_DARK_PERIOD_VIOLATION: AlertTriangle,
+  LIGHTING_CONTROLLER_FAILURE: AlertTriangle,
+  LIGHTING_CONTINUOUS_LIGHT: AlertTriangle,
+  LIGHTING_CONTINUOUS_DARK: AlertTriangle,
+  LIGHTING_MISSING_EVENTS: AlertTriangle,
+
   OTHER: AlertTriangle,
 }
 
@@ -622,13 +646,26 @@ const responsibleByCategory: Record<string, string[]> = {
 const initialIncidents = sortIncidents(fallbackIncidents)
 
 const analyticsTypeFilterMap: Record<string, string> = {
-  microclimate: "Микроклимат",
-  lighting: "Освещение",
-  water: "Водоснабжение",
-  flock: "Падеж и состояние стада",
-  feeding: "Кормление",
-  sanitation: "Санитария",
-  production: "Производственные показатели",
+  MICROCLIMATE: "Микроклимат",
+  SANITATION: "Санитария",
+  FLOCK_HEALTH: "Падеж и состояние стада",
+  FEEDING: "Кормление",
+  WATER_SUPPLY: "Водоснабжение",
+  PRODUCTION_METRICS: "Производственные показатели",
+
+  LIGHTING_ILLUMINANCE_LOW: "Освещение",
+  LIGHTING_ILLUMINANCE_HIGH: "Освещение",
+  LIGHTING_UNIFORMITY_VIOLATION: "Освещение",
+  LIGHTING_SYSTEM_HEALTH_WARNING: "Освещение",
+  LIGHTING_SYSTEM_HEALTH_CRITICAL: "Освещение",
+  LIGHTING_SCHEDULE_DEVIATION: "Освещение",
+  LIGHTING_DARK_PERIOD_VIOLATION: "Освещение",
+  LIGHTING_CONTROLLER_FAILURE: "Освещение",
+  LIGHTING_CONTINUOUS_LIGHT: "Освещение",
+  LIGHTING_CONTINUOUS_DARK: "Освещение",
+  LIGHTING_MISSING_EVENTS: "Освещение",
+
+  OTHER: "Прочее",
 }
 
 const analyticsPriorityFilterMap: Record<string, string> = {
@@ -756,7 +793,8 @@ export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
       (latest, incident) => Math.max(latest, getIncidentTimestamp(incident) ?? 0),
       0,
     )
-    const periodStart = latestTimestamp - periodDays * 24 * 60 * 60 * 1000
+    const now = Date.now()
+    const periodStart = Math.max(now, latestTimestamp) - periodDays * 24 * 60 * 60 * 1000
 
     return incidents.filter((incident) => {
       const timestamp = getIncidentTimestamp(incident)
