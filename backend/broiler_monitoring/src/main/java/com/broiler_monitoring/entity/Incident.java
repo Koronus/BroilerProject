@@ -5,6 +5,7 @@ import com.broiler_monitoring.enumerated.IncidentPriority;
 import com.broiler_monitoring.enumerated.IncidentSource;
 import com.broiler_monitoring.enumerated.IncidentStatus;
 import com.broiler_monitoring.enumerated.IncidentType;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -74,14 +75,20 @@ public class Incident {
     @Column(columnDefinition = "text")
     private String decisionComment;
 
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @Column(nullable = false)
     private LocalDateTime createdAt;
-
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private LocalDateTime detectedAt;
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private LocalDateTime updatedAt;
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private LocalDateTime startedAt;
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private LocalDateTime resolvedAt;
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private LocalDateTime closedAt;
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private Long reactionMinutes;
 
     @PrePersist

@@ -4,5 +4,6 @@ public enum IncidentSource {
     NOTIFICATION, // создан из уведомления
     MANUAL,       // создан вручную сотрудником
     SYSTEM,       // создан системой
-    ANALYTICS     // создан аналитикой
-}
+    ANALYTICS,     // создан аналитикой
+    SENSOR
+    }
