@@ -12,8 +12,10 @@ import { TechnicalHeader } from "@/components/dashboard/technical-header"
 import { batches, poultryHouses } from "@/lib/production-filters"
 import { NotificationsPage } from "@/components/dashboard/notifications-page"
 import { IncidentsPage } from "@/components/dashboard/incidents-page"
+import { IncidentAnalyticsPage } from "@/components/dashboard/incident-analytics-page"
 import { TasksPage } from "@/components/dashboard/tasks-page"
 import { NotificationBanner } from "@/components/dashboard/notification-banner"
+import type { IncidentRegistryFilters } from "@/lib/incident-analytics"
 
 export default function DashboardPage() {
   const [activeCategory, setActiveCategory] = useState(categories[0]?.id || "zootech")
@@ -69,8 +71,14 @@ export default function DashboardPage() {
     const section = params.get("section")
     const metric = params.get("metric")
 
-    if (section === "technical") {
-      setActiveSection("technical")
+    if (
+      section === "technical" ||
+      section === "incidents" ||
+      section === "analytics" ||
+      section === "notifications" ||
+      section === "tasks"
+    ) {
+      setActiveSection(section)
     }
 
     if (metric) {
@@ -111,18 +119,44 @@ export default function DashboardPage() {
     setActiveSection("incidents")
   }
 
+  const handleSectionChange = (section: DashboardSection) => {
+    setActiveSection(section)
+    const params = new URLSearchParams()
+    params.set("section", section)
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`)
+  }
+
+  const handleOpenIncidentRegistry = (filters: IncidentRegistryFilters) => {
+    const params = new URLSearchParams({
+      section: "incidents",
+      periodDays: String(filters.periodDays),
+    })
+
+    if (filters.workshop) params.set("workshop", filters.workshop)
+    if (filters.house) params.set("house", filters.house)
+    if (filters.type) params.set("type", filters.type)
+    if (filters.priority) params.set("priority", filters.priority)
+    if (filters.status) params.set("status", filters.status)
+
+    window.history.pushState(null, "", `${window.location.pathname}?${params.toString()}`)
+    setSelectedIncidentId(undefined)
+    setActiveSection("incidents")
+  }
+
   return (
     <div className="min-h-screen px-3 py-3 md:px-5 md:py-5">
       <div className="dashboard-shell mx-auto max-w-[1680px] rounded-[28px]">
         <DashboardHeader 
           activeSection={activeSection}
-          onSectionChange={setActiveSection}
+          onSectionChange={handleSectionChange}
         />
 
         {activeSection === "notifications" ? (
           <NotificationsPage />
         ) : activeSection === "incidents" ? (
           <IncidentsPage selectedIncidentId={selectedIncidentId} />
+        ) : activeSection === "analytics" ? (
+          <IncidentAnalyticsPage onOpenRegistry={handleOpenIncidentRegistry} />
         ) : activeSection === "tasks" ? (
           <TasksPage />
         ) : (

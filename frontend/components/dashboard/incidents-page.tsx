@@ -36,7 +36,7 @@ import { uploadIncidentAttachments } from "@/lib/incident-attachments"
 import { cn } from "@/lib/utils"
 
 type IncidentPriority = "critical" | "high" | "medium" | "low"
-type IncidentStatus = "new" | "inProgress" | "overdue" | "closed"
+type IncidentStatus = "new" | "inProgress" | "overdue" | "resolved" | "closed" | "cancelled"
 
 interface BackendIncident {
   id: string
@@ -112,7 +112,9 @@ const statusConfig: Record<IncidentStatus, { label: string; className: string }>
   new: { label: "Новый", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
   inProgress: { label: "В работе", className: "border-sky-200 bg-sky-50 text-sky-700" },
   overdue: { label: "Просрочен", className: "border-red-200 bg-red-50 text-red-700" },
+  resolved: { label: "Решён", className: "border-teal-200 bg-teal-50 text-teal-700" },
   closed: { label: "Закрыт", className: "border-zinc-300 bg-zinc-100 text-zinc-700" },
+  cancelled: { label: "Отменён", className: "border-zinc-300 bg-zinc-50 text-zinc-500" },
 }
 
 const backendPriorityMap: Record<string, IncidentPriority> = {
@@ -125,13 +127,14 @@ const backendPriorityMap: Record<string, IncidentPriority> = {
 const backendStatusMap: Record<string, IncidentStatus> = {
   OPEN: "new",
   IN_PROGRESS: "inProgress",
-  RESOLVED: "closed",
+  RESOLVED: "resolved",
   CLOSED: "closed",
-  CANCELLED: "closed",
+  CANCELLED: "cancelled",
 }
 
 const backendIncidentTypeLabelMap: Record<string, string> = {
   MICROCLIMATE: "Микроклимат",
+  LIGHTING: "Освещение",
   SANITATION: "Санитария",
   FLOCK_HEALTH: "Падеж и состояние стада",
   FEEDING: "Кормление",
@@ -142,6 +145,7 @@ const backendIncidentTypeLabelMap: Record<string, string> = {
 
 const backendIncidentTypeIconMap: Record<string, LucideIcon> = {
   MICROCLIMATE: Thermometer,
+  LIGHTING: AlertTriangle,
   SANITATION: ShieldAlert,
   FLOCK_HEALTH: ShieldAlert,
   FEEDING: Wrench,
@@ -218,6 +222,9 @@ const parseIncidentDateTime = (dateLabel: string, timeLabel: string) => {
 const getIncidentTimestamp = (incident: Incident) =>
   parseIncidentDateTime(incident.date, incident.time)
 
+const isTerminalIncident = (incident: Incident) =>
+  incident.status === "resolved" || incident.status === "closed" || incident.status === "cancelled"
+
 const sortIncidents = (incidents: Incident[]) =>
   [...incidents].sort(
     (a, b) => (getIncidentTimestamp(b) ?? 0) - (getIncidentTimestamp(a) ?? 0),
@@ -271,10 +278,10 @@ const toIncident = (incident: BackendIncident): Incident => {
 }
 
 const buildKpiItems = (incidents: Incident[]) => [
-  { label: "Открытые", value: incidents.filter((i) => i.status !== "closed").length.toString(), icon: Clock3, tone: "text-sky-600" },
+  { label: "Открытые", value: incidents.filter((i) => !isTerminalIncident(i)).length.toString(), icon: Clock3, tone: "text-sky-600" },
   { label: "Критические", value: incidents.filter((i) => i.priority === "critical").length.toString(), icon: AlertTriangle, tone: "text-red-600" },
   { label: "Просроченные", value: incidents.filter((i) => i.status === "overdue").length.toString(), icon: TimerReset, tone: "text-amber-600" },
-  { label: "Закрытые", value: incidents.filter((i) => i.status === "closed").length.toString(), icon: CheckCircle2, tone: "text-emerald-600" },
+  { label: "Завершённые", value: incidents.filter(isTerminalIncident).length.toString(), icon: CheckCircle2, tone: "text-emerald-600" },
 ]
 
 const fallbackIncidents: Incident[] = [
@@ -454,9 +461,9 @@ function IncidentDetails({
             <p className="mt-1 text-sm font-medium text-zinc-900">{incident.poultryHouse}</p>
           </div>
         </section>
-        {incident.status === "closed" && (
+        {isTerminalIncident(incident) && (
           <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-            <p className="font-medium">Статус: Закрыт{incident.closedAt ? ` (${incident.closedAt})` : ""}</p>
+            <p className="font-medium">Статус: {statusConfig[incident.status].label}{incident.closedAt ? ` (${incident.closedAt})` : ""}</p>
           </section>
         )}
         {incident.status === "inProgress" && (
@@ -494,7 +501,7 @@ function IncidentDetails({
         )}
         <section>
           <p className="mb-1 text-xs uppercase tracking-wide text-zinc-500">
-            {incident.status === "closed" ? "Итог / решение" : "Комментарий"}
+            {isTerminalIncident(incident) ? "Итог / решение" : "Комментарий"}
           </p>
           <p className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
             {incident.comment}
@@ -503,7 +510,7 @@ function IncidentDetails({
       </div>
 
       <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 px-5 py-4">
-        {incident.status !== "closed" ? (
+        {!isTerminalIncident(incident) ? (
           <>
             {incident.status === "new" && (
               <Button
@@ -614,6 +621,31 @@ const responsibleByCategory: Record<string, string[]> = {
 
 const initialIncidents = sortIncidents(fallbackIncidents)
 
+const analyticsTypeFilterMap: Record<string, string> = {
+  microclimate: "Микроклимат",
+  lighting: "Освещение",
+  water: "Водоснабжение",
+  flock: "Падеж и состояние стада",
+  feeding: "Кормление",
+  sanitation: "Санитария",
+  production: "Производственные показатели",
+}
+
+const analyticsPriorityFilterMap: Record<string, string> = {
+  CRITICAL: "Критический",
+  HIGH: "Высокий",
+  MEDIUM: "Средний",
+  LOW: "Низкий",
+}
+
+const analyticsStatusFilterMap: Record<string, string> = {
+  OPEN: "Новый",
+  IN_PROGRESS: "В работе",
+  RESOLVED: "Решён",
+  CLOSED: "Закрыт",
+  CANCELLED: "Отменён",
+}
+
 interface IncidentsPageProps {
   selectedIncidentId?: string
 }
@@ -625,6 +657,8 @@ export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
     selectedIncidentId ?? initialIncidents[0].id,
   )
   const [searchQuery, setSearchQuery] = useState("")
+  const [periodDays, setPeriodDays] = useState<7 | 30>(7)
+  const [workshopFilter, setWorkshopFilter] = useState("Все цеха")
   const [typeFilter, setTypeFilter] = useState("Все типы")
   const [houseFilter, setHouseFilter] = useState("Все птичники")
   const [statusFilter, setStatusFilter] = useState("Все статусы")
@@ -644,6 +678,23 @@ export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
   const [newDescription, setNewDescription] = useState("")
   const [newResponsible, setNewResponsible] = useState<string[]>(responsibleByCategory[categoryOptions[0]])
   const [newIncidentFiles, setNewIncidentFiles] = useState<File[]>([])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const requestedPeriod = Number(params.get("periodDays"))
+    const requestedWorkshop = params.get("workshop")
+    const requestedHouse = params.get("house")
+    const requestedType = params.get("type")
+    const requestedPriority = params.get("priority")
+    const requestedStatus = params.get("status")
+
+    setPeriodDays(requestedPeriod === 30 ? 30 : 7)
+    if (requestedWorkshop) setWorkshopFilter(requestedWorkshop)
+    if (requestedHouse) setHouseFilter(requestedHouse)
+    if (requestedType) setTypeFilter(analyticsTypeFilterMap[requestedType] ?? requestedType)
+    if (requestedPriority) setPriorityFilter(analyticsPriorityFilterMap[requestedPriority] ?? requestedPriority)
+    if (requestedStatus) setStatusFilter(analyticsStatusFilterMap[requestedStatus] ?? requestedStatus)
+  }, [])
 
   useEffect(() => {
     let isCancelled = false
@@ -701,28 +752,74 @@ export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
 
   const filteredIncidents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
+    const latestTimestamp = incidents.reduce(
+      (latest, incident) => Math.max(latest, getIncidentTimestamp(incident) ?? 0),
+      0,
+    )
+    const periodStart = latestTimestamp - periodDays * 24 * 60 * 60 * 1000
 
     return incidents.filter((incident) => {
+      const timestamp = getIncidentTimestamp(incident)
+      const matchesPeriod = !timestamp || !latestTimestamp || timestamp >= periodStart
       const matchesSearch = !query || incident.id.toLowerCase().includes(query)
+      const matchesWorkshop = workshopFilter === "Все цеха" || incident.workshop === workshopFilter
       const matchesType = typeFilter === "Все типы" || incident.type === typeFilter
       const matchesHouse = houseFilter === "Все птичники" || incident.poultryHouse === houseFilter
       const matchesStatus = statusFilter === "Все статусы" || statusConfig[incident.status].label === statusFilter
       const matchesPriority = priorityFilter === "Любой" || priorityConfig[incident.priority].label === priorityFilter
-      return matchesSearch && matchesType && matchesHouse && matchesStatus && matchesPriority
+      return matchesPeriod && matchesSearch && matchesWorkshop && matchesType && matchesHouse && matchesStatus && matchesPriority
     })
-  }, [incidents, searchQuery, typeFilter, houseFilter, statusFilter, priorityFilter])
+  }, [incidents, periodDays, searchQuery, workshopFilter, typeFilter, houseFilter, statusFilter, priorityFilter])
 
-  const activeFilteredIncidents = filteredIncidents.filter((incident) => incident.status !== "closed")
-  const closedFilteredIncidents = filteredIncidents.filter((incident) => incident.status === "closed")
+  const activeFilteredIncidents = filteredIncidents.filter((incident) => !isTerminalIncident(incident))
+  const closedFilteredIncidents = filteredIncidents.filter(isTerminalIncident)
 
   const activeIncident = filteredIncidents.find((incident) => incident.id === activeIncidentId) ?? filteredIncidents[0] ?? null
 
   const kpiItems = useMemo(() => buildKpiItems(incidents), [incidents])
 
-  const typeOptions = useMemo(() => ["Все типы", ...Array.from(new Set(incidents.map((i) => i.type)))], [incidents])
-  const houseOptions = useMemo(() => ["Все птичники", ...Array.from(new Set(incidents.map((i) => i.poultryHouse)))], [incidents])
-  const statusOptions = useMemo(() => ["Все статусы", ...Array.from(new Set(incidents.map((i) => statusConfig[i.status].label)))], [incidents])
-  const priorityOptions = useMemo(() => ["Любой", ...Array.from(new Set(incidents.map((i) => priorityConfig[i.priority].label)))], [incidents])
+  const typeOptions = useMemo(() => [
+    "Все типы",
+    ...Array.from(new Set([
+      ...(typeFilter !== "Все типы" ? [typeFilter] : []),
+      ...incidents.map((incident) => incident.type),
+    ])),
+  ], [incidents, typeFilter])
+  const registryWorkshopOptions = useMemo(() => [
+    "Все цеха",
+    ...Array.from(new Set([
+      ...(workshopFilter !== "Все цеха" ? [workshopFilter] : []),
+      ...incidents.map((incident) => incident.workshop),
+    ])),
+  ], [incidents, workshopFilter])
+  const houseOptions = useMemo(
+    () => [
+      "Все птичники",
+      ...Array.from(new Set(
+        [
+          ...(houseFilter !== "Все птичники" ? [houseFilter] : []),
+          ...incidents
+            .filter((incident) => workshopFilter === "Все цеха" || incident.workshop === workshopFilter)
+            .map((incident) => incident.poultryHouse),
+        ],
+      )),
+    ],
+    [houseFilter, incidents, workshopFilter],
+  )
+  const statusOptions = useMemo(() => [
+    "Все статусы",
+    ...Array.from(new Set([
+      ...(statusFilter !== "Все статусы" ? [statusFilter] : []),
+      ...incidents.map((incident) => statusConfig[incident.status].label),
+    ])),
+  ], [incidents, statusFilter])
+  const priorityOptions = useMemo(() => [
+    "Любой",
+    ...Array.from(new Set([
+      ...(priorityFilter !== "Любой" ? [priorityFilter] : []),
+      ...incidents.map((incident) => priorityConfig[incident.priority].label),
+    ])),
+  ], [incidents, priorityFilter])
 
   const currentHouseOptions = useMemo(
     () => housesByWorkshop[newWorkshop] ?? [],
@@ -996,8 +1093,22 @@ export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
       </section>
 
       <section className="border-b border-zinc-200 px-6 py-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <FieldSelect label="Период" options={["Последние 24 часа", "Сегодня", "7 дней", "Месяц"]} value="Последние 24 часа" onValueChange={() => {}} />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <FieldSelect
+            label="Период"
+            options={["7 дней", "30 дней"]}
+            value={`${periodDays} дней`}
+            onValueChange={(value) => setPeriodDays(value === "30 дней" ? 30 : 7)}
+          />
+          <FieldSelect
+            label="Цех"
+            options={registryWorkshopOptions}
+            value={workshopFilter}
+            onValueChange={(value) => {
+              setWorkshopFilter(value)
+              setHouseFilter("Все птичники")
+            }}
+          />
           <FieldSelect label="Тип" options={typeOptions} value={typeFilter} onValueChange={setTypeFilter} />
           <FieldSelect label="Птичник" options={houseOptions} value={houseFilter} onValueChange={setHouseFilter} />
           <FieldSelect label="Статус" options={statusOptions} value={statusFilter} onValueChange={setStatusFilter} />
@@ -1080,7 +1191,7 @@ export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
               onClick={() => setIsClosedExpanded((value) => !value)}
               className="flex w-full items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-left text-sm font-semibold uppercase tracking-wide text-zinc-700"
             >
-              <span>Закрытые инциденты ({closedFilteredIncidents.length})</span>
+              <span>Завершённые инциденты ({closedFilteredIncidents.length})</span>
               {isClosedExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
             </button>
 
