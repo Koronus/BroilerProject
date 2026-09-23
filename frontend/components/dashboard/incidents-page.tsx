@@ -789,16 +789,11 @@ export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
 
   const filteredIncidents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    const latestTimestamp = incidents.reduce(
-      (latest, incident) => Math.max(latest, getIncidentTimestamp(incident) ?? 0),
-      0,
-    )
-    const now = Date.now()
-    const periodStart = Math.max(now, latestTimestamp) - periodDays * 24 * 60 * 60 * 1000
+    const periodStart = Date.now() - periodDays * 24 * 60 * 60 * 1000
 
     return incidents.filter((incident) => {
       const timestamp = getIncidentTimestamp(incident)
-      const matchesPeriod = !timestamp || !latestTimestamp || timestamp >= periodStart
+      const matchesPeriod = timestamp !== undefined && timestamp >= periodStart
       const matchesSearch = !query || incident.id.toLowerCase().includes(query)
       const matchesWorkshop = workshopFilter === "Все цеха" || incident.workshop === workshopFilter
       const matchesType = typeFilter === "Все типы" || incident.type === typeFilter
@@ -814,7 +809,7 @@ export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
 
   const activeIncident = filteredIncidents.find((incident) => incident.id === activeIncidentId) ?? filteredIncidents[0] ?? null
 
-  const kpiItems = useMemo(() => buildKpiItems(incidents), [incidents])
+  const kpiItems = useMemo(() => buildKpiItems(filteredIncidents), [filteredIncidents])
 
   const typeOptions = useMemo(() => [
     "Все типы",
@@ -1039,31 +1034,69 @@ export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
     }
   }
 
-  const handleCloseIncident = (id: string) => {
+  const handleCloseIncident = async (id: string) => {
+  const incident = incidents.find((i) => i.id === id)
+  if (!incident?.backendId) return
+
+  try {
+    const response = await fetch(`/api/incidents/${incident.backendId}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("CLOSED"),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(errorText || "Не удалось закрыть инцидент")
+    }
+
+    const updated = (await response.json()) as BackendIncident
+    const nextIncident = toIncident(updated)
+
     setIncidents((current) =>
-      current.map((incident) =>
-        incident.id === id
-          ? {
-              ...incident,
-              status: "closed",
-              comment: "Инцидент закрыт вручную через карточку.",
-              closedAt: new Date().toLocaleString("ru-RU"),
-            }
-          : incident,
-      ),
+      current.map((i) => (i.id === id ? nextIncident : i))
     )
     setIsClosedExpanded(true)
-  }
-
-  const handleReopenIncident = (id: string) => {
-    setIncidents((current) =>
-      current.map((incident) =>
-        incident.id === id
-          ? { ...incident, status: "inProgress", comment: "Инцидент возвращен в работу.", closedAt: undefined }
-          : incident,
-      ),
+    setCreateSuccessMessage(`Инцидент ${id} закрыт`)
+    setTimeout(() => setCreateSuccessMessage(""), 3000)
+  } catch (error) {
+    setCreateSuccessMessage(
+      error instanceof Error ? error.message : "Ошибка закрытия инцидента"
     )
+    setTimeout(() => setCreateSuccessMessage(""), 4000)
   }
+}
+const handleReopenIncident = async (id: string) => {
+  const incident = incidents.find((i) => i.id === id)
+  if (!incident?.backendId) return
+
+  try {
+    const response = await fetch(`/api/incidents/${incident.backendId}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify("IN_PROGRESS"),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(errorText || "Не удалось переоткрыть инцидент")
+    }
+
+    const updated = (await response.json()) as BackendIncident
+    const nextIncident = toIncident(updated)
+
+    setIncidents((current) =>
+      current.map((i) => (i.id === id ? nextIncident : i))
+    )
+    setCreateSuccessMessage(`Инцидент ${id} переоткрыт`)
+    setTimeout(() => setCreateSuccessMessage(""), 3000)
+  } catch (error) {
+    setCreateSuccessMessage(
+      error instanceof Error ? error.message : "Ошибка переоткрытия"
+    )
+    setTimeout(() => setCreateSuccessMessage(""), 4000)
+  }
+}
 
   const handleDownloadReport = (id: string) => {
     setCreateSuccessMessage(`Сформирован отчет по инциденту ${id} (демо).`)
