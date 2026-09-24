@@ -209,7 +209,7 @@ export function IncidentAnalyticsPage({ onOpenRegistry }: IncidentAnalyticsPageP
               <h1 className="text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
                 Аналитика инцидентов
               </h1>
-              <span className="dashboard-chip">SLA реакции: {data.filters.slaMinutes} мин</span>
+              
               {isRefreshing && (
                 <span className="dashboard-chip">
                   <RefreshCcw className="size-3.5 animate-spin" />Обновление
@@ -217,7 +217,7 @@ export function IncidentAnalyticsPage({ onOpenRegistry }: IncidentAnalyticsPageP
               )}
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-              Контроль скорости реакции, соблюдения SLA и структуры инцидентов по производственным площадкам.
+              Контроль скорости реакции и соблюдения  структуры инцидентов по производственным площадкам.
             </p>
             <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
               Период данных: {formatAnalyticsPeriod(data.period)}
@@ -257,20 +257,7 @@ export function IncidentAnalyticsPage({ onOpenRegistry }: IncidentAnalyticsPageP
             </div>
           </fieldset>
 
-          <label className="flex min-w-0 flex-col gap-1.5">
-            <span className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Цех</span>
-            <select
-              value={workshop}
-              onChange={(event) => {
-                setWorkshop(event.target.value)
-                setHouse("")
-              }}
-              className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none transition hover:bg-zinc-50 focus:border-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:hover:bg-white/8"
-            >
-              <option value="">Все цеха</option>
-              {workshopOptions.map((option) => <option key={option}>{option}</option>)}
-            </select>
-          </label>
+          
 
           <label className="flex min-w-0 flex-col gap-1.5">
             <span className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Птичник</span>
@@ -324,6 +311,7 @@ export function IncidentAnalyticsPage({ onOpenRegistry }: IncidentAnalyticsPageP
               details={`${data.kpi.slaMetCount} в SLA · ${data.kpi.slaBreachedCount} нарушено · ${data.kpi.slaPendingCount} ожидают`}
               icon={Activity}
               tone="emerald"
+              tooltip="«Реакция в SLA» показывает, в каком проценте случаев инцидент был взят в работу до истечения 30 минут." 
             />
             <IncidentAnalyticsKpi
               label="Время закрытия"
@@ -331,6 +319,7 @@ export function IncidentAnalyticsPage({ onOpenRegistry }: IncidentAnalyticsPageP
               details={`Медиана ${formatDuration(data.kpi.medianCloseMinutes)} · измерено ${data.kpi.closeMeasuredCount}`}
               icon={CheckCircle2}
               tone="violet"
+              tooltip="Время закрытия — это время от обнаружения инцидента до его окончательного закрытия. Считается только для завершенных инцидентов. Решённые, но не закрытые инциденты не учитываются."
             />
           </section>
 
