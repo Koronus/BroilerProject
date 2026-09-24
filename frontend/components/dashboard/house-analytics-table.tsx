@@ -25,7 +25,7 @@ export function HouseAnalyticsTable({ rows, onSelect }: HouseAnalyticsTableProps
         <div>
           <h2 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">Показатели по птичникам</h2>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Сортировка по числу инцидентов и худшему показателю SLA
+            Сортировка по числу инцидентов и худшему показателю реакция в SLA
           </p>
         </div>
         <span className="text-sm text-zinc-500 dark:text-zinc-400">Птичников: {rows.length}</span>
