@@ -40,7 +40,7 @@ public class LightingMonitoringService {
         this.influxStorage = influxStorage;
     }
 
-    @Scheduled(fixedDelay = 300000) // каждые 5 минут
+    @Scheduled(fixedDelay = 1200000) // каждые 20 минут
     public void checkMetrics() {
         log.info("Проверка показателей освещения...");
         checkIlluminance();
