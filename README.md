@@ -37,7 +37,7 @@ Broiler/
 │  ├─ src/main/java/...          # контроллеры, сервисы, сущности, репозитории
 │  ├─ src/main/resources/
 │  │  ├─ application.properties  # конфигурация приложения
-│  │  └─ db/migration/           # Flyway-миграции (V2…V15)
+│  │  └─ db/migration/           # Flyway-миграции (V2…V17)
 │  ├─ docker-compose.yml         # Postgres, InfluxDB, Grafana, MinIO
 │  └─ .env.example               # шаблон переменных окружения
 ├─ sensorImitation/              # Python-симулятор датчиков (sensor_simulator.py)
