@@ -57,6 +57,9 @@ public class Notification {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    @Column(name = "batch_id")
+    private UUID batchId;
+
 
     public Notification(String code, String title, String description){
         this.code = code;
