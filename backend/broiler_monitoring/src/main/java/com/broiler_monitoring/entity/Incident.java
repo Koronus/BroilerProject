@@ -53,6 +53,9 @@ public class Incident {
     @Column(nullable = false)
     private IncidentSource source;
 
+    @Column(name = "batch_id")
+    private UUID batchId;
+
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "incident_type", nullable = false)

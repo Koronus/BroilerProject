@@ -61,6 +61,9 @@ public class Task {
     @Column(name = "termtask",nullable = false)
     private  LocalDateTime termTask;
 
+    @Column(name = "batch_id")
+    private UUID batchId;
+
     @PrePersist
     public void PrePersist(){
         createTask = LocalDateTime.now();

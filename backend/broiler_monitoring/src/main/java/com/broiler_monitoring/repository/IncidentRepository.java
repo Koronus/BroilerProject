@@ -18,6 +18,8 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
 
     List<Incident> findByNotificationId(UUID notificationId);
 
+    List<Incident> findByBatchId(UUID batchId);
+
     @Query("SELECT i FROM Incident i " +
             "WHERE COALESCE(i.detectedAt, i.createdAt) >= :from " +
             "AND COALESCE(i.detectedAt, i.createdAt) < :to " +

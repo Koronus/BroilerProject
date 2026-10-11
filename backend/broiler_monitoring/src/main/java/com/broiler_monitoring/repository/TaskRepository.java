@@ -20,6 +20,8 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
     List<Task> findByCreateTaskBefore(LocalDateTime date);
     List<Task> findByCreateTaskAfter(LocalDateTime date);
 
+    List<Task> findByBatchId(UUID batchId);
+
     @Query("SELECT t FROM Task t WHERE " +
             "(:status IS NULL OR t.status = :status) AND " +
             "(:priority IS NULL OR t.priority = :priority) AND " +
