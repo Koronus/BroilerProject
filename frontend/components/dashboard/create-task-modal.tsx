@@ -12,6 +12,7 @@ interface CreateTaskModalProps {
   metricTitle?: string
   metricId?: string
   currentValue?: string
+  batchId?: string
   onTaskCreated?: () => void
 }
 
@@ -21,6 +22,7 @@ export function CreateTaskModal({
   metricTitle, 
   metricId,
   currentValue,
+  batchId,
   onTaskCreated 
 }: CreateTaskModalProps) {
   const [loading, setLoading] = useState(false)
@@ -53,7 +55,8 @@ export function CreateTaskModal({
         priority: formData.priority.toUpperCase(),
         responsible: formData.responsible,
         status: 'OPEN',
-        termTask: new Date(formData.termTask).toISOString()
+        termTask: new Date(formData.termTask).toISOString(),
+        batchId: batchId || null,   // ← добавить
       }
 
       const response = await fetch('/api/tasks', {

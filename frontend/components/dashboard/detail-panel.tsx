@@ -1102,6 +1102,7 @@ export function DetailPanel({
         metricTitle={metricData.title}
         metricId={activeMetric}
         currentValue={metricData.currentValue}
+        //batchId={selectedBatchIds[0] ?? ""}
         //onTaskCreated={refreshTasks}
       />
 
