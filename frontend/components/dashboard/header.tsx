@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export type DashboardSection = "technical" | "incidents" | "analytics" | "notifications" | "tasks"
+export type DashboardSection = "technical" | "incidents" | "analytics" | "notifications" | "tasks"| "batches"
 
 interface DashboardHeaderProps {
   activeSection: DashboardSection
@@ -70,6 +70,13 @@ export function DashboardHeader({
                 className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-400"
               >
                 Аналитика
+              </TabsTrigger>
+              <TabsTrigger
+                value="batches"
+                className="data-[state=active]:bg-zinc-700 data-[state=active]:text-white text-zinc-400"
+              >
+              
+                Паспорт партии
               </TabsTrigger>
               <TabsTrigger
                 value="notifications"

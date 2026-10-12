@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, FileText } from "lucide-react"
 import type { ReactNode } from "react"
 
 import {
@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
 import { batches, poultryHouses } from "@/lib/production-filters"
 
 interface TechnicalHeaderProps {
@@ -16,6 +17,7 @@ interface TechnicalHeaderProps {
   selectedBatchId?: string
   onSelectHouse: (id: string) => void
   onSelectBatch: (id: string) => void
+  onOpenBatchPassport?: (batchNumber: string) => void
 }
 
 function SelectPill({
@@ -50,14 +52,19 @@ export function TechnicalHeader({
   selectedBatchId,
   onSelectHouse,
   onSelectBatch,
+  onOpenBatchPassport,
 }: TechnicalHeaderProps) {
-  // В выпадающем списке птичников показываем только «Птичник 1-01».
-  const houseOptions = poultryHouses.filter((house) => house.id === "ph-101")
+  const houseOptions = poultryHouses
   const selectedHouse = poultryHouses.find((house) => house.id === selectedHouseId)
   const selectedBatch = batches.find((batch) => batch.id === selectedBatchId)
   const availableBatches = batches.filter(
     (batch) => !selectedHouseId || batch.poultryHouseId === selectedHouseId,
   )
+
+  const handleOpenPassport = () => {
+    if (!selectedBatch || !onOpenBatchPassport) return
+    onOpenBatchPassport(selectedBatch.batchNumber)  
+  }
 
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -85,6 +92,17 @@ export function TechnicalHeader({
             <DropdownMenuItem disabled>Нет партий для птичника</DropdownMenuItem>
           )}
         </SelectPill>
+
+        {selectedBatch && onOpenBatchPassport && (
+          <Button
+            variant="outline"
+            onClick={handleOpenPassport}
+            className="inline-flex items-center gap-2"
+          >
+            <FileText className="size-4" />
+            Открыть паспорт партии
+          </Button>
+        )}
       </div>
     </div>
   )

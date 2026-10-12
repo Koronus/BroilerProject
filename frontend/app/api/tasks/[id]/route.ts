@@ -7,7 +7,7 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // ✅ ВАЖНО: нужно await params в Next.js 16
+ 
   const { id } = await params
   
   console.log("=== PUT /api/tasks/[id] ===")
@@ -44,7 +44,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // ✅ ВАЖНО: нужно await params в Next.js 16
+  
   const { id } = await params
   
   console.log("=== DELETE /api/tasks/[id] ===")

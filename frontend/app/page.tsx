@@ -15,6 +15,7 @@ import { IncidentsPage } from "@/components/dashboard/incidents-page"
 import { IncidentAnalyticsPage } from "@/components/dashboard/incident-analytics-page"
 import { TasksPage } from "@/components/dashboard/tasks-page"
 import { NotificationBanner } from "@/components/dashboard/notification-banner"
+import { BatchPassportPage } from "@/components/dashboard/batch-passport-page"
 import type { IncidentRegistryFilters } from "@/lib/incident-analytics"
 
 export default function DashboardPage() {
@@ -76,7 +77,8 @@ export default function DashboardPage() {
       section === "incidents" ||
       section === "analytics" ||
       section === "notifications" ||
-      section === "tasks"
+      section === "tasks"||
+      section === "batches"
     ) {
       setActiveSection(section)
     }
@@ -142,6 +144,13 @@ export default function DashboardPage() {
     setSelectedIncidentId(undefined)
     setActiveSection("incidents")
   }
+  const handleOpenBatchPassport = (batchNumber: string) => {
+    const params = new URLSearchParams(window.location.search)
+    params.set("section", "batches")
+    params.set("batchNumber", batchNumber)
+    window.history.replaceState(null, "", `?${params.toString()}`)
+    setActiveSection("batches")
+  }
 
   return (
     <div className="min-h-screen px-3 py-3 md:px-5 md:py-5">
@@ -157,6 +166,9 @@ export default function DashboardPage() {
           <IncidentsPage selectedIncidentId={selectedIncidentId} />
         ) : activeSection === "analytics" ? (
           <IncidentAnalyticsPage onOpenRegistry={handleOpenIncidentRegistry} />
+
+        )  : activeSection === "batches" ? (
+          <BatchPassportPage />
         ) : activeSection === "tasks" ? (
           <TasksPage />
         ) : (
@@ -168,6 +180,7 @@ export default function DashboardPage() {
               selectedBatchId={selectedBatchIds[0]}
               onSelectHouse={handleSelectHouse}
               onSelectBatch={handleSelectBatch}
+              onOpenBatchPassport={handleOpenBatchPassport}
             />
 
             <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">

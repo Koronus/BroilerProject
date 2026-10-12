@@ -19,6 +19,7 @@ export interface Batch {
   id: string
   poultryHouseId: string
   label: string
+  batchNumber: string
   ageLabel: string
   ageDaysRange: [number, number]
   ageGroup: BirdAgeGroup
@@ -47,7 +48,8 @@ export const batches: Batch[] = [
   {
     id: "batch-2026-04-15-b1",
     poultryHouseId: "ph-101",
-    label: "Партия № 2026-04-15 Бройлер-1",
+    label: "Партия № 2026-04-15",
+    batchNumber: "BATCH-2026-001",
     ageLabel: "0-3 дня",
     ageDaysRange: [0, 3],
     ageGroup: "0-3",
@@ -55,7 +57,8 @@ export const batches: Batch[] = [
   {
     id: "batch-2026-03-20-b1",
     poultryHouseId: "ph-102",
-    label: "Партия № 2026-03-20 Бройлер-2",
+    label: "Партия № 2026-03-20",
+    batchNumber: "BATCH-2026-002",
     ageLabel: "21-30 дней",
     ageDaysRange: [21, 30],
     ageGroup: "21-30",
@@ -63,31 +66,27 @@ export const batches: Batch[] = [
   {
     id: "batch-2026-03-18-b2",
     poultryHouseId: "ph-201",
-    label: "Партия № 2026-03-18 Бройлер-3",
+    label: "Партия № 2026-03-18",
+    batchNumber: "BATCH-2026-003",
     ageLabel: "21-30 дней",
     ageDaysRange: [21, 30],
     ageGroup: "21-30",
   },
+  {
+    id: "batch-2026-04-13-b1",
+    poultryHouseId: "ph-103",
+    label: "Партия № 2026-04-13",
+    batchNumber: "BATCH-2026-004",
+    ageLabel: "60+ дней",
+    ageDaysRange: [60, 90],
+    ageGroup: "21-30",   
+  },
+  
   {
     id: "batch-2026-04-14-rs",
     poultryHouseId: "ph-301",
     label: "Партия № 2026-04-14 Родительское стадо-1",
-    ageLabel: "0-3 дня",
-    ageDaysRange: [0, 3],
-    ageGroup: "0-3",
-  },
-  {
-    id: "batch-2026-03-25-rs",
-    poultryHouseId: "ph-302",
-    label: "Партия № 2026-03-25 Родительское стадо-2",
-    ageLabel: "21-30 дней",
-    ageDaysRange: [21, 30],
-    ageGroup: "21-30",
-  },
-  {
-    id: "batch-2026-04-12-rm",
-    poultryHouseId: "ph-401",
-    label: "Партия № 2026-04-12 Ремонтный молодняк-1",
+    batchNumber: "BATCH-2026-005",   // ← backend: архив, РС-01
     ageLabel: "0-3 дня",
     ageDaysRange: [0, 3],
     ageGroup: "0-3",
