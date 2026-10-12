@@ -11,9 +11,11 @@ import java.util.List;
 @Service
 public class TaskService {
     private TaskRepository taskRepository;
+    private final BatchReferenceValidator batchReferences;
 
-    public TaskService(TaskRepository taskRepository){
+    public TaskService(TaskRepository taskRepository, BatchReferenceValidator batchReferences){
         this.taskRepository = taskRepository;
+        this.batchReferences = batchReferences;
     }
 
     public List<Task> findAll(){
@@ -21,14 +23,16 @@ public class TaskService {
     }
 
     public Task create(Task task){
+        batchReferences.validate(task.getBatchId());
         return taskRepository.save(task);
     }
 
     public Task updateTask(Task task) {
 
-        if (!taskRepository.existsById(task.getId())) {
-            throw new EntityNotFoundException("Task not found with id: " + task.getId());
-        }
+        Task existing = taskRepository.findById(task.getId()).orElseThrow(() ->
+                new EntityNotFoundException("Task not found with id: " + task.getId()));
+        if (task.getBatchId() == null) task.setBatchId(existing.getBatchId());
+        batchReferences.validate(task.getBatchId());
 
         return taskRepository.save(task);
     }

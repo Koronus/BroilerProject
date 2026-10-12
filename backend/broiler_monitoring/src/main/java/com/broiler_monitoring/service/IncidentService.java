@@ -45,6 +45,7 @@ public class IncidentService {
     private final AppUserRepository userRepository;
     private final IncidentHistoryRepository historyRepository;
     private final Clock clock;
+    private final BatchReferenceValidator batchReferences;
 
 
 
@@ -53,13 +54,15 @@ public class IncidentService {
             NotificationRepository notificationRepository,
             AppUserRepository userRepository,
             IncidentHistoryRepository historyRepository,
-            Clock clock
+            Clock clock,
+            BatchReferenceValidator batchReferences
     ){
         this.repository = repository;
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.historyRepository = historyRepository;
         this.clock = clock;
+        this.batchReferences = batchReferences;
     }
 
     public List<Incident> findAll(){
@@ -80,6 +83,7 @@ public class IncidentService {
     }
     public Incident create(Incident incidentRequest) {
         Incident request = incidentRequest != null ? incidentRequest : new Incident();
+        batchReferences.validate(request.getBatchId());
         Incident incident = new Incident();
 
 
@@ -92,6 +96,7 @@ public class IncidentService {
         incident.setZone(blankToNull(request.getZone()));
         incident.setTitle(firstNotBlank(request.getTitle(), buildIncidentTitle(incident)));
         incident.setDescription(request.getDescription());
+        incident.setBatchId(request.getBatchId());
         incident.setPriority(request.getPriority() != null ? request.getPriority() : IncidentPriority.MEDIUM);
         incident.setSource(request.getSource() != null ? request.getSource() : IncidentSource.MANUAL);
         incident.setResponsible(blankToNull(request.getResponsible()));
@@ -137,6 +142,13 @@ public class IncidentService {
         incident.setSource(IncidentSource.NOTIFICATION);
         incident.setStatus(IncidentStatus.OPEN);
         incident.setNotificationId(notification.getId());
+        if (request.getBatchId() != null && notification.getBatchId() != null
+                && !request.getBatchId().equals(notification.getBatchId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Incident and notification must belong to the same batch");
+        }
+        incident.setBatchId(notification.getBatchId() != null ? notification.getBatchId() : request.getBatchId());
+        batchReferences.validate(incident.getBatchId());
+        notification.setBatchId(incident.getBatchId());
         incident.setResponsible(blankToNull(request.getResponsible()));
         incident.setDecisionComment(blankToNull(request.getDecisionComment()));
         incident.setDetectedAt(request.getDetectedAt() != null ? request.getDetectedAt() : notification.getCreatedAt());
@@ -156,6 +168,16 @@ public class IncidentService {
 
         if (updatedIncident.getTitle() != null) {
             incident.setTitle(updatedIncident.getTitle());
+        }
+        if (updatedIncident.getBatchId() != null) {
+            batchReferences.validate(updatedIncident.getBatchId());
+            if (incident.getNotificationId() != null) {
+                Notification linked = notificationRepository.findById(incident.getNotificationId()).orElseThrow();
+                if (linked.getBatchId() != null && !linked.getBatchId().equals(updatedIncident.getBatchId())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Incident and notification must belong to the same batch");
+                }
+            }
+            incident.setBatchId(updatedIncident.getBatchId());
         }
         if (updatedIncident.getDescription() != null) {
             incident.setDescription(updatedIncident.getDescription());

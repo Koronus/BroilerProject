@@ -12,6 +12,7 @@ import java.util.*;
 
 @Repository
 public interface TaskRepository extends JpaRepository<Task, UUID> {
+    List<Task> findByBatchIdOrderByCreateTaskDesc(UUID batchId);
 
     List<Task> findByStatus(String status);
     List<Task> findByPriority(String priority);

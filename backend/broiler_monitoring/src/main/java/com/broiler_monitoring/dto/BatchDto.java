@@ -3,6 +3,7 @@ package com.broiler_monitoring.dto;
 import com.broiler_monitoring.entity.Batch;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 public record BatchDto(
@@ -19,13 +20,16 @@ public record BatchDto(
         String origin,
         String cross,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String timeZone,
+        LocalDate hatchDate,
+        String farm
 ) {
     public static BatchDto from(Batch batch) {
         return new BatchDto(
                 batch.getId(),
                 batch.getBatchNumber(),
-                batch.getStatus().name(),
+                batch.getStatus() == null ? null : batch.getStatus().name(),
                 batch.getWorkshop(),
                 batch.getHouse(),
                 batch.getZoneName(),
@@ -36,7 +40,10 @@ public record BatchDto(
                 batch.getOrigin(),
                 batch.getCrossName(),
                 batch.getCreatedAt(),
-                batch.getUpdatedAt()
+                batch.getUpdatedAt(),
+                batch.getTimeZone(),
+                batch.getHatchDate(),
+                batch.getFarm()
         );
     }
 }

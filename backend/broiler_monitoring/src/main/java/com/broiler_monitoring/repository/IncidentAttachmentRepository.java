@@ -7,5 +7,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface IncidentAttachmentRepository extends JpaRepository<IncidentAttachment, UUID> {
+    List<IncidentAttachment> findByIncidentIdInOrderByCreatedAtDesc(List<UUID> incidentIds);
     List<IncidentAttachment> findByIncidentIdOrderByCreatedAtDesc(UUID incidentId);
 }
