@@ -15,8 +15,13 @@ import java.util.UUID;
 @Service
 public class NotificationService {
     private final NotificationRepository repository;
-    public NotificationService(NotificationRepository repository){
+    private final BatchReferenceValidator batchReferences;
+    private final com.broiler_monitoring.repository.IncidentRepository incidents;
+    public NotificationService(NotificationRepository repository, BatchReferenceValidator batchReferences,
+                               com.broiler_monitoring.repository.IncidentRepository incidents){
         this.repository = repository;
+        this.batchReferences = batchReferences;
+        this.incidents = incidents;
     }
 
     public List<Notification> findAll() {
@@ -38,6 +43,7 @@ public class NotificationService {
     }
 
     public Notification create(Notification notification) {
+        batchReferences.validate(notification.getBatchId());
         return repository.save(notification);
     }
 
@@ -47,6 +53,14 @@ public class NotificationService {
                         HttpStatus.NOT_FOUND,
                         "Notification with id '%s' not found".formatted(id)));
         notification.setCode(updatedNotification.getCode());
+        if (updatedNotification.getBatchId() != null) {
+            batchReferences.validate(updatedNotification.getBatchId());
+            if (incidents.findByNotificationId(id).stream().anyMatch(incident -> incident.getBatchId() != null
+                    && !incident.getBatchId().equals(updatedNotification.getBatchId()))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Notification and incident must belong to the same batch");
+            }
+            notification.setBatchId(updatedNotification.getBatchId());
+        }
         notification.setTitle(updatedNotification.getTitle());
         notification.setDescription(updatedNotification.getDescription());
         notification.setSource(updatedNotification.getSource());

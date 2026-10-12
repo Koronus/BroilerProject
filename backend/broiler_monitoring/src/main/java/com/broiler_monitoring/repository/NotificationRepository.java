@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
+    java.util.List<Notification> findByBatchIdOrderByCreatedAtDesc(UUID batchId);
     Optional<Notification> findByCode(String code);
     List<Notification> findByBatchId(UUID batchId);
 }

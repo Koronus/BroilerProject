@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface IncidentRepository extends JpaRepository<Incident, UUID> {
+    List<Incident> findByBatchIdOrderByCreatedAtDesc(UUID batchId);
     Optional<Incident> findByCode(String code);
 
     List<Incident> findByStatus(IncidentStatus status);
