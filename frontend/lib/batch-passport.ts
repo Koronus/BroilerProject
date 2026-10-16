@@ -72,8 +72,25 @@ export interface BatchPassportResponse {
   dataQuality: { complete: boolean; issues: Array<{ code: string; field: string; message: string }> }
 }
 
+export class BatchPassportRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message)
+    this.name = "BatchPassportRequestError"
+  }
+}
+
 export async function fetchBatchPassport(batchId: string, signal?: AbortSignal): Promise<BatchPassportResponse> {
   const response = await fetch(`/api/batches/${encodeURIComponent(batchId)}/passport`, { cache: "no-store", signal })
-  if (!response.ok) throw new Error(`Batch passport request failed: HTTP ${response.status}`)
+  if (!response.ok) {
+    throw new BatchPassportRequestError(
+      response.status === 404
+        ? "Партия не найдена"
+        : "Не удалось получить паспорт партии. Проверьте доступность API.",
+      response.status,
+    )
+  }
   return response.json() as Promise<BatchPassportResponse>
 }

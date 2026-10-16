@@ -39,3 +39,20 @@ export const incidentStatusLabels: Record<string, string> = {
   CLOSED: "Закрыт",
   CANCELLED: "Отменён",
 }
+
+export const notificationStatusLabels: Record<string, string> = {
+  NEW: "Новое",
+  READ: "Прочитано",
+  ARCHIVED: "В архиве",
+  PROCESSED: "Обработано",
+}
+
+export const taskStatusLabels: Record<string, string> = {
+  NEW: "Новая",
+  OPEN: "Открыта",
+  IN_PROGRESS: "В работе",
+  DONE: "Выполнена",
+  COMPLETED: "Выполнена",
+  CANCELLED: "Отменена",
+  OVERDUE: "Просрочена",
+}

@@ -71,6 +71,7 @@ export default function DashboardPage() {
     const params = new URLSearchParams(window.location.search)
     const section = params.get("section")
     const metric = params.get("metric")
+    const incidentId = params.get("incidentId")
 
     if (
       section === "technical" ||
@@ -98,6 +99,8 @@ export default function DashboardPage() {
         })
       }
     }
+
+    if (incidentId) setSelectedIncidentId(incidentId)
   }, [selectedAge])
 
   const handleSelectHouse = (id: string) => {
@@ -117,6 +120,15 @@ export default function DashboardPage() {
   }
 
   const handleOpenIncidentCard = (incidentId: string) => {
+    setSelectedIncidentId(incidentId)
+    setActiveSection("incidents")
+  }
+
+  const handleOpenIncidentFromPassport = (incidentId: string) => {
+    const params = new URLSearchParams()
+    params.set("section", "incidents")
+    params.set("incidentId", incidentId)
+    window.history.pushState(null, "", `${window.location.pathname}?${params.toString()}`)
     setSelectedIncidentId(incidentId)
     setActiveSection("incidents")
   }
@@ -152,6 +164,14 @@ export default function DashboardPage() {
     setActiveSection("batches")
   }
 
+  const handleOpenBatchPassportById = (batchId: string) => {
+    const params = new URLSearchParams()
+    params.set("section", "batches")
+    params.set("batchId", batchId)
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`)
+    setActiveSection("batches")
+  }
+
   return (
     <div className="min-h-screen px-3 py-3 md:px-5 md:py-5">
       <div className="dashboard-shell mx-auto max-w-[1680px] rounded-[28px]">
@@ -163,12 +183,12 @@ export default function DashboardPage() {
         {activeSection === "notifications" ? (
           <NotificationsPage />
         ) : activeSection === "incidents" ? (
-          <IncidentsPage selectedIncidentId={selectedIncidentId} />
+          <IncidentsPage selectedIncidentId={selectedIncidentId} onOpenBatchPassport={handleOpenBatchPassportById} />
         ) : activeSection === "analytics" ? (
           <IncidentAnalyticsPage onOpenRegistry={handleOpenIncidentRegistry} />
 
         )  : activeSection === "batches" ? (
-          <BatchPassportPage />
+          <BatchPassportPage onOpenIncident={handleOpenIncidentFromPassport} />
         ) : activeSection === "tasks" ? (
           <TasksPage />
         ) : (

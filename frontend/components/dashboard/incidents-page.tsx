@@ -40,6 +40,7 @@ type IncidentStatus = "new" | "inProgress" | "overdue" | "resolved" | "closed" |
 
 interface BackendIncident {
   id: string
+  batchId?: string | null
   code?: string | null
   title: string
   description?: string | null
@@ -62,6 +63,7 @@ interface BackendIncident {
 
 interface Incident {
   backendId?: string
+  batchId?: string
   id: string
   date: string
   time: string
@@ -274,6 +276,7 @@ const toIncident = (incident: BackendIncident): Incident => {
 
   return {
     backendId: incident.id,
+    batchId: incident.batchId ?? undefined,
     id,
     date,
     time,
@@ -442,6 +445,7 @@ function IncidentDetails({
   onReopenIncident,
   onDownloadReport,
   onCreateRelated,
+  onOpenBatchPassport,
 }: {
   incident: Incident
   assigningIncidentId: string | null
@@ -453,6 +457,7 @@ function IncidentDetails({
   onReopenIncident: (id: string) => void
   onDownloadReport: (id: string) => void
   onCreateRelated: (id: string) => void
+  onOpenBatchPassport?: (batchId: string) => void
 }) {
   const relatedMetric = getMetricForIncident(incident)
   const isAssigning = assigningIncidentId === incident.id
@@ -534,6 +539,11 @@ function IncidentDetails({
       </div>
 
       <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 px-5 py-4">
+        {incident.batchId && onOpenBatchPassport && (
+          <Button variant="outline" className="border-zinc-300 bg-white" onClick={() => onOpenBatchPassport(incident.batchId!)}>
+            <ExternalLink className="size-4" />Паспорт партии
+          </Button>
+        )}
         {!isTerminalIncident(incident) ? (
           <>
             {incident.status === "new" && (
@@ -685,9 +695,10 @@ const analyticsStatusFilterMap: Record<string, string> = {
 
 interface IncidentsPageProps {
   selectedIncidentId?: string
+  onOpenBatchPassport?: (batchId: string) => void
 }
 
-export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
+export function IncidentsPage({ selectedIncidentId, onOpenBatchPassport }: IncidentsPageProps = {}) {
   const router = useRouter()
   const [incidents, setIncidents] = useState<Incident[]>(initialIncidents)
   const [activeIncidentId, setActiveIncidentId] = useState(
@@ -752,11 +763,12 @@ export function IncidentsPage({ selectedIncidentId }: IncidentsPageProps = {}) {
         if (!isCancelled) {
           hasCompletedInitialLoad = true
           setIncidents(nextIncidents)
-          setActiveIncidentId((currentId) =>
-            nextIncidents.some((incident) => incident.id === currentId)
-              ? currentId
-              : nextIncidents[0]?.id ?? "",
-          )
+          setActiveIncidentId((currentId) => {
+            const requested = nextIncidents.find(
+              (incident) => incident.id === currentId || incident.backendId === currentId,
+            )
+            return requested?.id ?? nextIncidents[0]?.id ?? ""
+          })
         }
       } catch {
         if (!isCancelled) {
@@ -1253,7 +1265,7 @@ const handleReopenIncident = async (id: string) => {
           </div>
 
           <div className="mt-5 lg:hidden">
-            {activeIncident ? <IncidentDetails incident={activeIncident} assigningIncidentId={assigningIncidentId} selectedAssigneeRole={selectedAssigneeRole} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onAssignIncident={handleAssignIncident} onAssigneeRoleChange={setSelectedAssigneeRole} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
+            {activeIncident ? <IncidentDetails incident={activeIncident} assigningIncidentId={assigningIncidentId} selectedAssigneeRole={selectedAssigneeRole} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onAssignIncident={handleAssignIncident} onAssigneeRoleChange={setSelectedAssigneeRole} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} onOpenBatchPassport={onOpenBatchPassport} /> : <div className="rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</div>}
           </div>
 
           <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
@@ -1313,7 +1325,7 @@ const handleReopenIncident = async (id: string) => {
 
         <div className="hidden min-h-0 lg:block">
           {activeIncident ? (
-            <IncidentDetails incident={activeIncident} assigningIncidentId={assigningIncidentId} selectedAssigneeRole={selectedAssigneeRole} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onAssignIncident={handleAssignIncident} onAssigneeRoleChange={setSelectedAssigneeRole} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} />
+            <IncidentDetails incident={activeIncident} assigningIncidentId={assigningIncidentId} selectedAssigneeRole={selectedAssigneeRole} onOpenDetails={(id) => router.push(`/incidents/${id}`)} onAssignIncident={handleAssignIncident} onAssigneeRoleChange={setSelectedAssigneeRole} onCloseIncident={handleCloseIncident} onReopenIncident={handleReopenIncident} onDownloadReport={handleDownloadReport} onCreateRelated={handleCreateRelated} onOpenBatchPassport={onOpenBatchPassport} />
           ) : (
             <aside className="flex h-full items-center justify-center rounded-br-[28px] border-l border-zinc-200 bg-white p-5 text-sm text-zinc-500">Инцидентов нет.</aside>
           )}

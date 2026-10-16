@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useState } from "react"
-import { ArrowLeft, Download, ExternalLink, Link2, MessageSquare, RefreshCcw, UserPlus } from "lucide-react"
+import { useEffect, useState } from "react"
+import { ArrowLeft, Download, ExternalLink, FileText, Link2, MessageSquare, RefreshCcw, UserPlus } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -108,6 +108,7 @@ const incidentDetails: Record<string, DetailData> = {
 
 export default function IncidentDetailsPage() {
   const params = useParams<{ incidentId: string }>()
+  const [batchId, setBatchId] = useState<string | null>(null)
   const [storedIncident] = useState<StoredIncident | null>(() => {
     const savedIncidents = JSON.parse(window.localStorage.getItem("createdIncidents") ?? "{}")
     return savedIncidents[params.incidentId] ?? null
@@ -153,6 +154,20 @@ export default function IncidentDetailsPage() {
           notes: ["Описание пока не заполнено.", "Можно вернуться в реестр и уточнить инцидент."],
           actions: ["Назначить ответственного", "Добавить комментарий", "Закрыть после проверки"],
         })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch(`/api/incidents/${encodeURIComponent(params.incidentId)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then((response) => response.ok ? response.json() as Promise<{ batchId?: string | null }> : null)
+      .then((data) => setBatchId(data?.batchId ?? null))
+      .catch((error: unknown) => {
+        if (!(error instanceof Error) || error.name !== "AbortError") setBatchId(null)
+      })
+    return () => controller.abort()
+  }, [params.incidentId])
 
   return (
     <main className="min-h-screen bg-background px-4 py-5 md:px-8">
@@ -216,6 +231,13 @@ export default function IncidentDetailsPage() {
             <Button variant="outline"><Download className="size-4" />Скачать отчет</Button>
             <Button variant="outline"><Link2 className="size-4" />Создать связанный</Button>
             <Button variant="outline"><UserPlus className="size-4" />Назначить ответственного</Button>
+            {batchId && (
+              <Button asChild variant="outline">
+                <Link href={`/?section=batches&batchId=${encodeURIComponent(batchId)}`}>
+                  <FileText className="size-4" />Паспорт партии
+                </Link>
+              </Button>
+            )}
           </div>
           <p className="mt-3 text-xs text-zinc-500">Рекомендованные для этого инцидента действия: {incident.actions.join(", ")}.</p>
         </section>
