@@ -24,5 +24,6 @@ public record BatchPassportDto(
         List<AttachmentItem> attachments,
         Aggregates aggregates,
         Status status,
-        DataQuality dataQuality
+        DataQuality dataQuality,
+        List<BatchEventDto> events
 ) {}
