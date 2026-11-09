@@ -37,13 +37,15 @@ public class BatchPassportService {
     private final IncidentAttachmentRepository attachments;
     private final PassportTelemetryReader telemetry;
     private final Clock clock;
+    private  final BatchEventRepository batchEventRepository;
 
     public BatchPassportService(BatchRepository batches, SensorRepository sensors, IncidentRepository incidents,
                                NotificationRepository notifications, TaskRepository tasks,
-                               IncidentAttachmentRepository attachments, PassportTelemetryReader telemetry, Clock clock) {
+                               IncidentAttachmentRepository attachments, PassportTelemetryReader telemetry, Clock clock, BatchEventRepository batchEventRepository) {
         this.batches = batches; this.sensors = sensors; this.incidents = incidents;
         this.notifications = notifications; this.tasks = tasks; this.attachments = attachments;
         this.telemetry = telemetry; this.clock = clock;
+        this.batchEventRepository = batchEventRepository;
     }
 
     @Transactional(readOnly = true)
@@ -150,6 +152,8 @@ public class BatchPassportService {
         if (!risks.isEmpty()) recommendations.add("Проверить отклонения и связанные инциденты/задачи");
         if (!issues.isEmpty()) recommendations.add("Дополнить данные паспорта: см. dataQuality.issues");
         if (status == Status.NORMAL) recommendations.add("Партия в норме, известных отклонений нет");
+        List<BatchEvent> batchEvents = batchEventRepository.findByBatchIdOrderBySequenceAsc(batchId);
+        List<BatchEventDto> eventDtos = batchEvents.stream().map(BatchEventDto::from).toList();
         return new BatchPassportDto(BatchDto.from(batch), age,
                 new BatchKpiDto(initial, current, deadBirds, survival, batchIncidents.size(), Math.toIntExact(critical), Math.toIntExact(openTasks)),
                 batchIncidents.stream().map(IncidentBriefDto::from).toList(),
@@ -166,7 +170,7 @@ public class BatchPassportService {
                         "/api/v1/incident/" + a.getIncidentId() + "/attachments/" + a.getId() + "/content")).toList(),
                 new Aggregates(batchIncidents.size(), critical, activeCritical, openTasks,
                         anyDeviationsKnown ? deviationCount : null, deviationsComplete), status,
-                new DataQuality(issues.isEmpty(), List.copyOf(issues)));
+                new DataQuality(issues.isEmpty(), List.copyOf(issues)), eventDtos);
     }
 
     private List<Metric> select(List<Metric> metrics, Set<SensorType> types) {
